@@ -24,15 +24,21 @@ route `params` are Promises.
 3. Create a fresh Supabase project (do not reuse another project).
 4. In the Supabase SQL editor, run the files in `supabase/migrations/` in
    order: `0001_schema.sql`, then `0002_rls.sql`.
-5. Point the Supabase Magic Link email template at the token-hash route.
-   In Authentication -> Email Templates -> Magic Link, set the link to:
+5. Auth URL configuration. Set Authentication -> URL Configuration ->
+   Site URL to your app URL (http://localhost:3000 in dev), and add
+   `<app URL>/auth/callback` to the redirect allow-list.
+
+   Email templates: Supabase's built-in email service no longer allows
+   template editing without custom SMTP, so out of the box the DEFAULT
+   Magic Link template is used and handled by `/auth/callback` (PKCE code
+   exchange). Caveat: the link must be opened in the same browser that
+   requested it. When custom SMTP is configured (Slice 7, Resend), switch
+   the Magic Link template to the token-hash route, which works from any
+   browser or device:
 
    ```
    {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/admin
    ```
-
-   And set Authentication -> URL Configuration -> Site URL to your app URL
-   (http://localhost:3000 in dev).
 6. Bootstrap the admin: `npm run seed` creates (or promotes) the auth user
    for `ADMIN_EMAIL` with the admin role, plus sample members, ride leaders,
    and two historical rides. To promote a user manually instead:

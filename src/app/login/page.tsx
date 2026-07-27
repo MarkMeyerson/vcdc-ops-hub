@@ -28,8 +28,13 @@ function LoginForm() {
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      // Accounts are provisioned by the admin; never self-serve.
-      options: { shouldCreateUser: false },
+      options: {
+        // Accounts are provisioned by the admin; never self-serve.
+        shouldCreateUser: false,
+        // Used by the default Supabase email template (ConfirmationURL).
+        // Must be in the Supabase auth redirect allow-list.
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/admin`,
+      },
     })
 
     if (error) {
