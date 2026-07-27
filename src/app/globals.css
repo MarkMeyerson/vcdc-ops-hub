@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+
+/* Brand tokens sampled from the actual VCDC badge (authoritative, per the
+   build brief Section 2). Green means active or success, red means error
+   or unrecognized. */
+@theme {
+  --color-vcdc-amber: #e48125;
+  --color-vcdc-sky: #89cbe5;
+  --color-vcdc-sunburst: #fff78d;
+  --color-vcdc-cog: #939599;
+  --color-vcdc-red: #f14d4b;
+  --color-vcdc-green: #2da548;
+  --color-vcdc-charcoal: #2b2d2e;
+}
+
+body {
+  @apply bg-white text-vcdc-charcoal antialiased;
+}
