@@ -5,8 +5,8 @@ Replaces the paper ride waiver flow: admin manages members, members carry a
 QR wallet pass, ride leaders scan riders (offline-capable), guests sign a
 public waiver.
 
-Build brief: `VCDCCLAUDECODEBRIEF.md` in the MarkMeyerson/voice-ai-dashboard
-repo. Current state: Slice 1 (schema, RLS, admin auth, member CRUD).
+Build brief: `VCDCCLAUDECODEBRIEF.md` in this repo. Current state: Slice 1
+(schema, RLS, admin auth, member CRUD).
 
 ## Stack
 
