@@ -11,6 +11,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const urlError = searchParams.get('error')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
   const [error, setError] = useState<string | null>(
     urlError === 'forbidden'
@@ -26,6 +27,21 @@ function LoginForm() {
     setStatus('sending')
 
     const supabase = createClient()
+
+    if (password) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      if (error) {
+        setStatus('idle')
+        setError('Incorrect email or password.')
+        return
+      }
+      window.location.href = '/admin'
+      return
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -73,9 +89,24 @@ function LoginForm() {
                 placeholder="you@example.com"
               />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="password">Password (admin only)</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank for a magic link instead"
+              />
+            </div>
             {error && <p className="text-sm text-vcdc-red">{error}</p>}
             <Button type="submit" disabled={status === 'sending'}>
-              {status === 'sending' ? 'Sending...' : 'Email me a sign-in link'}
+              {status === 'sending'
+                ? 'Signing in...'
+                : password
+                  ? 'Sign in'
+                  : 'Email me a sign-in link'}
             </Button>
           </form>
         )}
