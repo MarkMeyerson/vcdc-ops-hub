@@ -1,6 +1,7 @@
 import forge from 'node-forge'
 import { PKPass } from 'passkit-generator'
 import type { Member } from '@/lib/db/schema'
+import { displayDate, tierLabels } from '@/lib/display'
 import { buildMemberQrPayload, qrSigningConfigured } from '@/lib/qr/payload'
 import { solidPng } from './png'
 
@@ -87,21 +88,6 @@ function p12ToPem(
     signerCert: forge.pki.certificateToPem(cert),
     signerKey: forge.pki.privateKeyToPem(key),
   }
-}
-
-const tierLabels: Record<Member['membershipTier'], string> = {
-  regular: 'Regular',
-  lifetime: 'Lifetime',
-  honorary: 'Honorary',
-}
-
-function displayDate(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  })
 }
 
 export async function buildApplePass(member: Member): Promise<Buffer> {

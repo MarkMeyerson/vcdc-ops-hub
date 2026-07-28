@@ -3,8 +3,9 @@ import { notFound } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import QRCode from 'qrcode'
 import { db } from '@/lib/db/client'
-import { members, type Member } from '@/lib/db/schema'
+import { members } from '@/lib/db/schema'
 import { requireAdmin } from '@/lib/auth'
+import { appOrigin, displayDate, tierLabels } from '@/lib/display'
 import { buildMemberQrPayload, qrSigningConfigured } from '@/lib/qr/payload'
 import { appleWalletStatus } from '@/lib/wallet/apple'
 import { createDownloadToken } from '@/lib/wallet/token'
@@ -12,21 +13,6 @@ import { createDownloadToken } from '@/lib/wallet/token'
 // Per-member wallet pass page: a faithful preview of the Apple pass, the
 // member's signed QR, and a second QR that downloads the real .pkpass on
 // an iPhone once signing certificates are configured.
-
-const tierLabels: Record<Member['membershipTier'], string> = {
-  regular: 'Regular',
-  lifetime: 'Lifetime',
-  honorary: 'Honorary',
-}
-
-function displayDate(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  })
-}
 
 async function qrDataUrl(text: string): Promise<string> {
   return QRCode.toDataURL(text, {
@@ -50,7 +36,7 @@ export default async function MemberPassPage({
 
   const signingReady = qrSigningConfigured()
   const apple = appleWalletStatus()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  const appUrl = appOrigin()
 
   let payload: string | null = null
   let payloadQr: string | null = null
