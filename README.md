@@ -6,7 +6,9 @@ QR wallet pass, ride leaders scan riders (offline-capable), guests sign a
 public waiver.
 
 Build brief: `VCDCCLAUDECODEBRIEF.md` in this repo. Current state: Slice 1
-(schema, RLS, admin auth, member CRUD).
+(schema, RLS, admin auth, member CRUD) accepted; Slice 2 (Apple Wallet
+pass) built and waiting only on Apple Developer credentials. The exact
+setup click-path is `WALLET-SETUP.md`.
 
 ## Stack
 
@@ -69,23 +71,28 @@ route `params` are Promises.
 3. Set the Supabase Site URL to the production URL, and add it to the
    Auth redirect allow-list.
 
-## Rotating QR_SIGNING_SECRET (Slice 5+)
+## Rotating QR_SIGNING_SECRET
 
-Not yet in use. When QR signing lands: generate a new value with
+In use since Slice 2. It signs the QR payload on every wallet pass and the
+expiring pass download links. To rotate: generate a new value with
 `openssl rand -hex 32`, update it in Vercel, redeploy, and re-issue member
 passes (pass QR payloads embed a signature keyed by this secret, so old
-passes stop validating after rotation).
+passes stop validating after rotation, and outstanding download links die
+immediately).
 
 ## Project layout
 
 ```
 src/proxy.ts                 session refresh + route gating (Next 16 middleware)
-src/app/login                magic link request
+src/app/login                magic link request (+ admin password fallback)
 src/app/auth/confirm         token-hash verifyOtp callback
 src/app/(admin)/admin        admin area (role: admin)
+src/app/api/wallet/apple     token-guarded .pkpass download
 src/lib/db                   Drizzle schema + client
 src/lib/supabase             browser / server / proxy clients
 src/lib/auth.ts              getUserRole + requireAdmin
+src/lib/qr                   member QR payload build + verify
+src/lib/wallet               Apple pass build, download tokens, icons
 src/lib/env.ts               fail-fast env validation
 supabase/migrations          schema + RLS, run in order
 scripts/seed.ts              admin bootstrap + sample data
