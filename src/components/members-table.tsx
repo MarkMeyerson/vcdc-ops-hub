@@ -67,6 +67,12 @@ export function MembersTable({
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-3">
                     <Link
+                      href={`/admin/members/${member.id}/pass`}
+                      className="font-medium text-vcdc-amber hover:underline"
+                    >
+                      Pass
+                    </Link>
+                    <Link
                       href={`/admin/members/${member.id}/edit`}
                       className="font-medium text-vcdc-amber hover:underline"
                     >

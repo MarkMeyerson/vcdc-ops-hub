@@ -1,0 +1,137 @@
+# Wallet setup
+
+Exact click-paths for getting real, installable wallet passes signed.
+Written for a future maintainer who is not Mark. Google Wallet is a later
+slice; this document covers Apple.
+
+**The one thing to remember: Apple pass certificates expire every 365
+days.** The certificate created in 2026 dies in mid-2027. When it does,
+new passes stop generating (existing passes already in people's Wallets
+keep working). The fix is repeating steps 3 through 5 below with a fresh
+certificate. Put a calendar reminder one month before expiry.
+
+## What the app already does
+
+All of Slice 2's code is in place and deployed. The admin Members list has
+a Pass link per member showing a pass preview, the member's signed QR, and
+a download QR. The download endpoint (`/api/wallet/apple/[memberId]`)
+returns a clear error naming any missing configuration until the steps
+below are done, then starts streaming real `.pkpass` files with no code
+change.
+
+## Prerequisites
+
+- An Apple Developer Program membership, 99 USD per year, at
+  [developer.apple.com/programs/enroll](https://developer.apple.com/programs/enroll).
+  Enroll as an organization (The Vespa Club of D.C., Inc.) if the club has
+  a D-U-N-S number, otherwise individual enrollment works fine for this.
+  Approval can take a day or two.
+- A Mac with Keychain Access (any Mac, nothing installed on it matters
+  afterward).
+
+## Step 1: generate QR_SIGNING_SECRET (no Apple account needed)
+
+In any terminal:
+
+```
+openssl rand -hex 32
+```
+
+Add the output in Vercel: project vcdc-ops-hub, Settings, Environment
+Variables, name `QR_SIGNING_SECRET`, scope Production and Preview.
+This alone activates the QR sections of the admin pass pages on the next
+deploy. Rotating this value later invalidates every issued pass QR and
+outstanding download link (see README).
+
+## Step 2: find your Team ID
+
+[developer.apple.com/account](https://developer.apple.com/account), scroll
+to Membership details. The Team ID is a 10-character code like `A1BC23DEF4`.
+
+Vercel env var: `APPLE_TEAM_ID`.
+
+## Step 3: create a Pass Type ID
+
+1. developer.apple.com/account, Certificates, Identifiers and Profiles,
+   Identifiers.
+2. Click the plus button, choose Pass Type IDs, Continue.
+3. Description: `VCDC Membership`. Identifier: `pass.org.vespaclubofdc.member`
+   (reverse-DNS of the club domain; any `pass.`-prefixed string works but
+   this one is self-explanatory).
+4. Register.
+
+Vercel env var: `APPLE_PASS_TYPE_ID` = the identifier string exactly, e.g.
+`pass.org.vespaclubofdc.member`.
+
+## Step 4: create and export the signing certificate
+
+1. On the Mac: open Keychain Access, menu Keychain Access, Certificate
+   Assistant, Request a Certificate From a Certificate Authority.
+2. User email: your email. Common Name: `VCDC Pass Signing`. CA Email:
+   leave empty. Choose "Saved to disk". Save the `.certSigningRequest`.
+3. Back on developer.apple.com: Certificates, plus button, scroll to
+   Services, choose Pass Type ID Certificate, Continue.
+4. Select the Pass Type ID from step 3, upload the `.certSigningRequest`,
+   Continue, Download. You get `pass.cer`.
+5. Double-click `pass.cer` so it lands in Keychain Access (login keychain).
+6. In Keychain Access, find it under My Certificates (it shows as
+   "Pass Type ID: pass.org.vespaclubofdc.member"), expand the arrow to
+   confirm the private key sits underneath, then right-click the
+   certificate row and Export. Format: Personal Information Exchange
+   (.p12). Set a password when prompted and keep it.
+
+Vercel env vars:
+
+```
+base64 -i Certificates.p12 | tr -d '\n'
+```
+
+- `APPLE_PASS_CERT_P12_B64` = that output
+- `APPLE_PASS_CERT_PASSWORD` = the export password
+
+## Step 5: the Apple WWDR intermediate certificate
+
+Download "Worldwide Developer Relations - G4" from
+[www.apple.com/certificateauthority](https://www.apple.com/certificateauthority/).
+The file is `AppleWWDRCAG4.cer`. No account needed.
+
+```
+base64 -i AppleWWDRCAG4.cer | tr -d '\n'
+```
+
+Vercel env var: `APPLE_WWDR_CERT_B64` = that output. The app accepts the
+`.cer` (DER) directly; no PEM conversion needed.
+
+## Step 6: deploy and test
+
+1. Confirm all six variables exist in Vercel, scope Production:
+   `QR_SIGNING_SECRET`, `APPLE_TEAM_ID`, `APPLE_PASS_TYPE_ID`,
+   `APPLE_PASS_CERT_P12_B64`, `APPLE_PASS_CERT_PASSWORD`,
+   `APPLE_WWDR_CERT_B64`.
+2. Redeploy (Deployments, latest, Redeploy) so the new variables load.
+3. Open any member's Pass page in the admin, scan the "Add to iPhone" QR
+   with the iPhone camera, and Safari should offer Add to Wallet.
+4. The pass should show: VCDC MEMBER header, the member's name, member
+   number, tier, expiry date, and the QR with the member number beneath it.
+
+If the download shows a JSON error instead, it lists exactly which
+variables the server cannot see. Typos in variable names are the usual
+suspect.
+
+## Known placeholder
+
+The pass icon is currently a solid sky blue square generated in code. The
+club badge's fine cog teeth and lettering would be illegible at Apple's
+29 point icon size, so a simplified mark (scooter and sunburst, no cog
+ring or text) needs to be produced. When it exists, add the PNGs to the
+model in `src/lib/wallet/apple.ts` (`icon.png` 29x29, `icon@2x.png` 58x58,
+`icon@3x.png` 87x87, and optionally `logo.png` for the top-left corner,
+max 160x50 points at 1x).
+
+## Renewal (yearly, this WILL come due mid-2027)
+
+1. Repeat step 4 (new CSR, new certificate, new .p12 export).
+2. Replace `APPLE_PASS_CERT_P12_B64` and `APPLE_PASS_CERT_PASSWORD` in
+   Vercel. Redeploy.
+3. Existing passes in members' Wallets are unaffected. Only the ability to
+   generate new passes was down while the certificate was expired.

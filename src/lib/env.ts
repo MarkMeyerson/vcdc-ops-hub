@@ -15,6 +15,16 @@ const schema = z
     POSTGRES_URL: z.string().min(1).optional(),
     NEXT_PUBLIC_APP_URL: z.string().url(),
     ADMIN_EMAIL: z.string().email(),
+    // Slice 2: signs pass QR payloads and download URLs. The pass page
+    // degrades to a setup notice when absent.
+    QR_SIGNING_SECRET: z.string().min(32).optional(),
+    // Slice 2: Apple Wallet signing. Optional until Mark's Apple Developer
+    // account exists; the download route returns 503 naming missing vars.
+    APPLE_WWDR_CERT_B64: z.string().min(1).optional(),
+    APPLE_PASS_CERT_P12_B64: z.string().min(1).optional(),
+    APPLE_PASS_CERT_PASSWORD: z.string().min(1).optional(),
+    APPLE_PASS_TYPE_ID: z.string().min(1).optional(),
+    APPLE_TEAM_ID: z.string().min(1).optional(),
   })
   .refine((vars) => vars.DATABASE_URL || vars.POSTGRES_URL, {
     message: 'DATABASE_URL (or POSTGRES_URL)',
