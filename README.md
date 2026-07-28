@@ -53,6 +53,22 @@ route `params` are Promises.
 
 7. `npm run dev`, open http://localhost:3000, request a magic link.
 
+## Checks
+
+CI runs these on every pull request and push to main; run them locally
+before pushing:
+
+- `npm run lint`
+- `npm run typecheck`
+- `npm run smoke` (whole wallet signing pipeline in memory, no env needed)
+- `npm run build`
+
+Environment variables are validated where they are used: server modules
+that need a variable throw a clear error naming it (or degrade with an
+explanatory notice, like the wallet routes before Apple credentials
+exist). The seed script refuses to add sample data to a non-empty members
+table unless run with `--force`.
+
 ## Roles and security
 
 - Roles live in `auth.users.raw_app_meta_data` (`admin` or `ride_leader`),
@@ -93,7 +109,8 @@ src/lib/supabase             browser / server / proxy clients
 src/lib/auth.ts              getUserRole + requireAdmin
 src/lib/qr                   member QR payload build + verify
 src/lib/wallet               Apple pass build, download tokens, icons
-src/lib/env.ts               fail-fast env validation
+src/lib/display.ts           shared labels, date formatting, app origin
 supabase/migrations          schema + RLS, run in order
 scripts/seed.ts              admin bootstrap + sample data
+scripts/smoke.ts             in-memory wallet pipeline test (npm run smoke)
 ```

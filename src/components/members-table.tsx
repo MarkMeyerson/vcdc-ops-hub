@@ -1,13 +1,8 @@
 import Link from 'next/link'
 import type { Member } from '@/lib/db/schema'
 import { deleteMember } from '@/app/(admin)/admin/members/actions'
+import { tierLabels } from '@/lib/display'
 import { DeleteMemberButton } from '@/components/delete-member-button'
-
-const tierLabels: Record<Member['membershipTier'], string> = {
-  regular: 'Regular',
-  lifetime: 'Lifetime',
-  honorary: 'Honorary',
-}
 
 export function MembersTable({
   members,

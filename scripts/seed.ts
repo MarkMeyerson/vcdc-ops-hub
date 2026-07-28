@@ -7,7 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { eq } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import postgres from 'postgres'
 import {
   members,
@@ -194,8 +194,20 @@ async function seedRideLeadersAndRides() {
 
 async function main() {
   await ensureAdminUser()
-  await seedMembers()
-  await seedRideLeadersAndRides()
+
+  // Safety: never mix sample rows into a database that already holds real
+  // members (this bit once being pointed at production would be bad).
+  // --force overrides for a deliberate re-seed of a dev database.
+  const [existing] = await db.select({ value: count() }).from(members)
+  if ((existing?.value ?? 0) > 0 && !process.argv.includes('--force')) {
+    console.log(
+      'Members table is not empty: skipping sample data so real records stay untouched. Run with --force to add samples anyway.'
+    )
+  } else {
+    await seedMembers()
+    await seedRideLeadersAndRides()
+  }
+
   await sql.end()
   console.log('Seed complete')
 }
