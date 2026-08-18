@@ -9,14 +9,17 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke.ts",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "google:class": "tsx --env-file-if-exists=.env.local scripts/google-wallet-class.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "drizzle-orm": "^0.44.2",
+    "google-auth-library": "^11.0.2",
     "next": "16.2.6",
     "passkit-generator": "^3.5.7",
+    "pdf-lib": "^1.17.1",
     "postgres": "^3.4.7",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
