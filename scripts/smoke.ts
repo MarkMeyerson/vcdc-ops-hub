@@ -7,7 +7,9 @@
 //
 // Usage: npm run smoke   (also runs in CI on every PR)
 
+import { createVerify, generateKeyPairSync } from 'node:crypto'
 import forge from 'node-forge'
+import type { Member } from '../src/lib/db/schema'
 import {
   buildMemberQrPayload,
   verifyMemberQrPayload,
@@ -18,6 +20,13 @@ import {
 } from '../src/lib/wallet/token'
 import { solidPng } from '../src/lib/wallet/png'
 import { appleWalletStatus, buildApplePass } from '../src/lib/wallet/apple'
+import {
+  buildGoogleSaveUrl,
+  googleObjectId,
+  googleWalletStatus,
+  readClassId,
+} from '../src/lib/wallet/google'
+import { buildMemberCardPdf, memberCardStatus } from '../src/lib/pdf/card'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -87,7 +96,9 @@ async function main() {
 
   assert(appleWalletStatus().configured, 'status should report configured')
 
-  const pkpass = await buildApplePass({
+  // One member record, shared by the Apple pass and the Google save link
+  // below, so both wallets are proven to carry the same identity.
+  const member: Member = {
     id: memberId,
     memberNumber: 10001,
     firstName: 'Test',
@@ -99,7 +110,9 @@ async function main() {
     expiresAt: '2027-07-16',
     createdAt: new Date(),
     updatedAt: new Date(),
-  })
+  }
+
+  const pkpass = await buildApplePass(member)
 
   assert(pkpass[0] === 0x50 && pkpass[1] === 0x4b, 'pass output is not a zip')
   const listing = pkpass.toString('latin1')
@@ -116,6 +129,109 @@ async function main() {
     'missing-var reporting broken'
   )
   console.log('status reporting ok')
+
+
+  // 6. Google Wallet save link: real RS256 signature over a real object
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  })
+  process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_B64 = Buffer.from(
+    JSON.stringify({
+      client_email: 'smoke@vcdc-smoke.iam.gserviceaccount.com',
+      private_key: privateKey,
+    })
+  ).toString('base64')
+  process.env.GOOGLE_WALLET_ISSUER_ID = '3388000000000000000'
+  process.env.GOOGLE_WALLET_CLASS_ID = '3388000000000000000.vcdc-member'
+
+  assert(googleWalletStatus().configured, 'google status should be configured')
+  assert(
+    readClassId() === '3388000000000000000.vcdc-member',
+    'class id read wrong'
+  )
+
+  const saveUrl = buildGoogleSaveUrl(member)
+  const prefix = 'https://pay.google.com/gp/v/save/'
+  assert(saveUrl.startsWith(prefix), `save url wrong: ${saveUrl.slice(0, 40)}`)
+
+  const jwt = saveUrl.slice(prefix.length)
+  const [headerB64, claimsB64, signatureB64] = jwt.split('.')
+  assert(headerB64 && claimsB64 && signatureB64, 'save JWT is not three parts')
+
+  const verified = createVerify('RSA-SHA256')
+    .update(`${headerB64}.${claimsB64}`)
+    .verify(publicKey, Buffer.from(signatureB64, 'base64url'))
+  assert(verified, 'save JWT signature does not verify')
+
+  const claims = JSON.parse(
+    Buffer.from(claimsB64, 'base64url').toString('utf8')
+  )
+  assert(claims.aud === 'google', 'wrong aud')
+  assert(claims.typ === 'savetowallet', 'wrong typ')
+  assert(claims.iss === 'smoke@vcdc-smoke.iam.gserviceaccount.com', 'wrong iss')
+
+  const object = claims.payload?.genericObjects?.[0]
+  assert(object, 'no generic object in save JWT')
+  assert(object.id === googleObjectId(10001), 'wrong object id')
+  assert(object.classId === readClassId(), 'wrong class id on object')
+  assert(
+    object.barcode?.value === payload,
+    'google barcode is not the member payload'
+  )
+  assert(object.barcode?.type === 'QR_CODE', 'wrong barcode type')
+  assert(object.hexBackgroundColor === '#89CBE5', 'wrong background color')
+  assert(object.header?.defaultValue?.value === 'Test Member', 'wrong header')
+  assert(
+    object.validTimeInterval?.end?.date?.startsWith('2027-07-16'),
+    'wrong expiry on google object'
+  )
+  console.log('google save link ok')
+
+  // 7. A class ID that does not sit under the issuer ID is a named error,
+  //    not a silent 404 from Google at save time.
+  process.env.GOOGLE_WALLET_CLASS_ID = '9999999999999999999.vcdc-member'
+  let rejectedClassId = false
+  try {
+    readClassId()
+  } catch {
+    rejectedClassId = true
+  }
+  assert(rejectedClassId, 'mismatched class id was accepted')
+
+  delete process.env.GOOGLE_WALLET_ISSUER_ID
+  assert(
+    googleWalletStatus().missing.includes('GOOGLE_WALLET_ISSUER_ID'),
+    'google missing-var reporting broken'
+  )
+  console.log('google status reporting ok')
+
+
+  // 8. Printable membership card. Needs no vendor account, only the QR
+  //    secret, which is why it is the interim credential for iPhone
+  //    members while Apple enrollment is pending.
+  assert(memberCardStatus().configured, 'card status should be configured')
+  const pdf = await buildMemberCardPdf(member)
+  assert(
+    pdf.subarray(0, 5).toString('latin1') === '%PDF-',
+    'card output is not a PDF'
+  )
+  assert(pdf.length > 2000, `card PDF suspiciously small: ${pdf.length} bytes`)
+  assert(
+    pdf.toString('latin1').includes('/Image'),
+    'card PDF has no embedded QR image'
+  )
+  console.log(`member card ok (${pdf.length} bytes)`)
+
+  const savedSecret = process.env.QR_SIGNING_SECRET
+  delete process.env.QR_SIGNING_SECRET
+  assert(
+    memberCardStatus().missing.includes('QR_SIGNING_SECRET'),
+    'card missing-var reporting broken'
+  )
+  process.env.QR_SIGNING_SECRET = savedSecret
+  console.log('card status reporting ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }

@@ -6,9 +6,14 @@ QR wallet pass, ride leaders scan riders (offline-capable), guests sign a
 public waiver.
 
 Build brief: `VCDCCLAUDECODEBRIEF.md` in this repo. Current state: Slice 1
-(schema, RLS, admin auth, member CRUD) accepted; Slice 2 (Apple Wallet
-pass) built and waiting only on Apple Developer credentials. The exact
-setup click-path is `WALLET-SETUP.md`.
+(schema, RLS, admin auth, member CRUD) accepted. Slice 2 (Apple Wallet) is
+built and parked on Apple Developer credentials. Slice 3 (Google Wallet) is
+built and needs a Google issuer ID, which is free. A printable PDF card was
+added alongside them: it needs no vendor account at all, so it is the card
+the club can send today, and it covers iPhone members while Apple is
+pending. All three carry the same signed member QR, so one scan resolves to
+one member whichever the rider shows. The setup click-path for each is
+`WALLET-SETUP.md`.
 
 ## Stack
 
@@ -60,7 +65,8 @@ before pushing:
 
 - `npm run lint`
 - `npm run typecheck`
-- `npm run smoke` (whole wallet signing pipeline in memory, no env needed)
+- `npm run smoke` (Apple signing, Google save JWT, and PDF card all built
+  in memory with throwaway keys, no env or network needed)
 - `npm run build`
 
 Environment variables are validated where they are used: server modules
@@ -89,8 +95,8 @@ table unless run with `--force`.
 
 ## Rotating QR_SIGNING_SECRET
 
-In use since Slice 2. It signs the QR payload on every wallet pass and the
-expiring pass download links. To rotate: generate a new value with
+In use since Slice 2. It signs the QR payload on every membership card
+(Apple, Google, and PDF alike) and the expiring download links. To rotate: generate a new value with
 `openssl rand -hex 32`, update it in Vercel, redeploy, and re-issue member
 passes (pass QR payloads embed a signature keyed by this secret, so old
 passes stop validating after rotation, and outstanding download links die
@@ -104,13 +110,17 @@ src/app/login                magic link request (+ admin password fallback)
 src/app/auth/confirm         token-hash verifyOtp callback
 src/app/(admin)/admin        admin area (role: admin)
 src/app/api/wallet/apple     token-guarded .pkpass download
+src/app/api/wallet/google    token-guarded Save to Google Wallet redirect
+src/app/api/wallet/pdf       token-guarded printable card download
 src/lib/db                   Drizzle schema + client
 src/lib/supabase             browser / server / proxy clients
 src/lib/auth.ts              getUserRole + requireAdmin
 src/lib/qr                   member QR payload build + verify
-src/lib/wallet               Apple pass build, download tokens, icons
+src/lib/wallet               Apple pass, Google pass, download tokens, icons
+src/lib/pdf                  printable membership card
 src/lib/display.ts           shared labels, date formatting, app origin
 supabase/migrations          schema + RLS, run in order
 scripts/seed.ts              admin bootstrap + sample data
-scripts/smoke.ts             in-memory wallet pipeline test (npm run smoke)
+scripts/smoke.ts             in-memory card pipeline test (npm run smoke)
+scripts/google-wallet-class.ts  Google class create (npm run google:class)
 ```

@@ -7,12 +7,15 @@ import { members } from '@/lib/db/schema'
 import { requireAdmin } from '@/lib/auth'
 import { appOrigin, displayDate, tierLabels } from '@/lib/display'
 import { buildMemberQrPayload, qrSigningConfigured } from '@/lib/qr/payload'
+import { memberCardStatus } from '@/lib/pdf/card'
 import { appleWalletStatus } from '@/lib/wallet/apple'
+import { googleWalletStatus } from '@/lib/wallet/google'
 import { createDownloadToken } from '@/lib/wallet/token'
 
-// Per-member wallet pass page: a faithful preview of the Apple pass, the
-// member's signed QR, and a second QR that downloads the real .pkpass on
-// an iPhone once signing certificates are configured.
+// Per-member membership card page: a faithful preview of the pass, the
+// member's signed QR, and one download QR per way of carrying the card. All
+// three carry the same signed payload, so a ride leader scan resolves to the
+// same member whichever one a rider shows.
 
 async function qrDataUrl(text: string): Promise<string> {
   return QRCode.toDataURL(text, {
@@ -21,6 +24,61 @@ async function qrDataUrl(text: string): Promise<string> {
     width: 480,
     color: { dark: '#2b2d2e', light: '#ffffff' },
   })
+}
+
+type DeliveryOption = {
+  key: string
+  title: string
+  instructions: string
+  qr: string
+  status: { configured: boolean; missing: string[] }
+  pendingNote: string
+  // Set when the file is useful on a desktop too, so an admin can download
+  // it and attach it to an email by hand until Slice 7 sends it for them.
+  href?: string
+  hrefLabel?: string
+}
+
+function DeliveryBlock({ option }: { option: DeliveryOption }) {
+  return (
+    <div>
+      <h2 className="text-sm font-medium uppercase text-vcdc-cog">
+        {option.title}
+      </h2>
+      <div className="mt-3 rounded-lg border border-vcdc-cog/30 p-4">
+        <div className="flex items-start gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={option.qr}
+            alt={`${option.title} QR code`}
+            className="h-32 w-32 rounded border border-vcdc-cog/20"
+          />
+          <div>
+            <p className="text-sm">{option.instructions}</p>
+            {option.href && (
+              <a
+                href={option.href}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-block text-sm font-medium text-vcdc-amber hover:underline"
+              >
+                {option.hrefLabel}
+              </a>
+            )}
+          </div>
+        </div>
+        {!option.status.configured && (
+          <div className="mt-3 rounded-md bg-vcdc-sunburst/40 p-3 text-xs">
+            <p className="font-medium">{option.pendingNote}</p>
+            <p className="mt-1">
+              Still needed in Vercel: {option.status.missing.join(', ')}. The
+              exact click-path is in WALLET-SETUP.md.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default async function MemberPassPage({
@@ -35,20 +93,57 @@ export default async function MemberPassPage({
   if (!member) notFound()
 
   const signingReady = qrSigningConfigured()
-  const apple = appleWalletStatus()
   const appUrl = appOrigin()
 
   let payload: string | null = null
   let payloadQr: string | null = null
-  let downloadUrl: string | null = null
-  let downloadQr: string | null = null
+  let options: DeliveryOption[] = []
 
   if (signingReady) {
     payload = buildMemberQrPayload(member.memberNumber)
     payloadQr = await qrDataUrl(payload)
+
     if (appUrl) {
-      downloadUrl = `${appUrl}/api/wallet/apple/${member.id}?t=${createDownloadToken(member.id)}`
-      downloadQr = await qrDataUrl(downloadUrl)
+      // One token covers all three routes: same member, same expiry.
+      const token = createDownloadToken(member.id)
+      const link = (surface: string) =>
+        `${appUrl}/api/wallet/${surface}/${member.id}?t=${token}`
+
+      // Printable card first: it is the only one needing no vendor account,
+      // so it is what the club can send members today.
+      options = [
+        {
+          key: 'pdf',
+          title: 'Printable card',
+          instructions:
+            'Scan with any phone camera to open the card as a PDF. Works on iPhone and Android, and prints on a home printer. Members can save it to their photos or keep the email.',
+          qr: await qrDataUrl(link('pdf')),
+          status: memberCardStatus(),
+          pendingNote: 'The printable card is not configured yet.',
+          href: link('pdf'),
+          hrefLabel: 'Open the card here to save or email it',
+        },
+        {
+          key: 'google',
+          title: 'Add to Android',
+          instructions:
+            'Scan with the Android camera. Chrome opens Google Wallet and offers Save to Wallet. The link is signed and expires after 30 days.',
+          qr: await qrDataUrl(link('google')),
+          status: googleWalletStatus(),
+          pendingNote:
+            'Google Wallet is not configured yet, so the link returns an explanatory error for now.',
+        },
+        {
+          key: 'apple',
+          title: 'Add to iPhone',
+          instructions:
+            'Scan with the iPhone camera. Safari downloads the pass and offers Add to Wallet. The link is signed and expires after 30 days.',
+          qr: await qrDataUrl(link('apple')),
+          status: appleWalletStatus(),
+          pendingNote:
+            'Apple signing is not configured yet, so the download returns an explanatory error for now. Send the printable card in the meantime.',
+        },
+      ]
     }
   }
 
@@ -62,7 +157,7 @@ export default async function MemberPassPage({
       </Link>
 
       <h1 className="mt-2 text-2xl font-semibold">
-        Wallet pass: {member.firstName} {member.lastName}
+        Membership card: {member.firstName} {member.lastName}
       </h1>
 
       <div className="mt-6 grid gap-8 md:grid-cols-2">
@@ -123,8 +218,9 @@ export default async function MemberPassPage({
             </div>
           </div>
           <p className="mt-2 text-xs text-vcdc-cog">
-            The real pass uses this exact layout and the same QR. The icon is
-            a placeholder until club artwork is added.
+            The Apple pass, the Google pass, and the printable card all use
+            this layout and this same QR. The icon is a placeholder until club
+            artwork is added.
           </p>
         </section>
 
@@ -147,7 +243,8 @@ export default async function MemberPassPage({
                 </span>
               </div>
               <p className="mt-3 text-xs text-vcdc-cog">
-                The pass retires itself in Apple Wallet at the expiry date.
+                Both wallet passes retire themselves at the expiry date. The
+                printable card shows it as text.
               </p>
               <Link
                 href={`/admin/members/${member.id}/edit`}
@@ -158,55 +255,24 @@ export default async function MemberPassPage({
             </div>
           </div>
 
-          <div>
-            <h2 className="text-sm font-medium uppercase text-vcdc-cog">
-              Add to iPhone
-            </h2>
-            <div className="mt-3 rounded-lg border border-vcdc-cog/30 p-4">
-              {!signingReady ? (
-                <p className="text-sm">
-                  Set QR_SIGNING_SECRET in Vercel (generate one with
-                  <span className="mx-1 rounded bg-vcdc-cog/10 px-1 font-mono text-xs">
-                    openssl rand -hex 32
-                  </span>
-                  ), redeploy, and this section activates.
-                </p>
-              ) : !appUrl ? (
-                <p className="text-sm">
-                  Set NEXT_PUBLIC_APP_URL in Vercel so the download link can
-                  be built, then redeploy.
-                </p>
-              ) : (
-                <>
-                  <div className="flex items-start gap-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={downloadQr!}
-                      alt="Pass download QR code"
-                      className="h-32 w-32 rounded border border-vcdc-cog/20"
-                    />
-                    <p className="text-sm">
-                      Scan with the iPhone camera. Safari downloads the pass
-                      and offers Add to Wallet. The link is signed and
-                      expires after 30 days.
-                    </p>
-                  </div>
-                  {!apple.configured && (
-                    <div className="mt-3 rounded-md bg-vcdc-sunburst/40 p-3 text-xs">
-                      <p className="font-medium">
-                        Signing is not configured yet, so the download
-                        returns an explanatory error for now.
-                      </p>
-                      <p className="mt-1">
-                        Still needed in Vercel: {apple.missing.join(', ')}.
-                        The exact click-path is in WALLET-SETUP.md.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
+          {!signingReady ? (
+            <div className="rounded-lg border border-vcdc-cog/30 p-4 text-sm">
+              Set QR_SIGNING_SECRET in Vercel (generate one with
+              <span className="mx-1 rounded bg-vcdc-cog/10 px-1 font-mono text-xs">
+                openssl rand -hex 32
+              </span>
+              ), redeploy, and the delivery options activate.
             </div>
-          </div>
+          ) : !appUrl ? (
+            <div className="rounded-lg border border-vcdc-cog/30 p-4 text-sm">
+              Set NEXT_PUBLIC_APP_URL in Vercel so the download links can be
+              built, then redeploy.
+            </div>
+          ) : (
+            options.map((option) => (
+              <DeliveryBlock key={option.key} option={option} />
+            ))
+          )}
 
           {payload && (
             <div>
