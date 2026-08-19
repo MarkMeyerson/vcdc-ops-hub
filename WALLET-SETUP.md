@@ -159,6 +159,40 @@ base64 -i vcdc-wallet-xxxx.json | tr -d '\n'
 
 Vercel env var: `GOOGLE_WALLET_SERVICE_ACCOUNT_B64` = that output.
 
+### If key creation is blocked by an organization policy
+
+Hit on 2026-08-19 in `sherpatechai-org`. The Keys tab refuses with
+"Service account key creation is disabled", naming the policy
+`iam.disableServiceAccountKeyCreation`. Google now enforces this by default
+on new organizations.
+
+**A key is genuinely required here.** Google's suggested alternative,
+Workload Identity Federation, issues short-lived access tokens and never
+exposes a private key. The Save to Google Wallet link is a JWT signed with
+the service account's own private key, so there is no keyless path for
+distributing passes. Do not spend time trying to avoid the key.
+
+Override the policy for this one project, leaving the org-wide default in
+place everywhere else:
+
+1. Grant your account Organization Policy Administrator
+   (`roles/orgpolicy.policyAdmin`) at the organization level, under IAM and
+   Admin, IAM.
+2. Go to IAM and Admin, Organization Policies, with the project picker set
+   to `vcdc-wallet` rather than the organization.
+3. Find `iam.disableServiceAccountKeyCreation`, Manage policy.
+4. Override parent's policy, add a rule, enforcement Off, Save.
+5. Wait a few minutes for propagation, then create the JSON key.
+
+If overriding is not acceptable, the alternative is to create the Cloud
+project under a Google account with no organization attached, where the
+policy does not apply. That adds another account to the eventual club
+handoff, so prefer the scoped override.
+
+Whichever route: the key exists only in Vercel and in `.env.local`. It is
+never committed, and it should be deleted from the service account when the
+club takes ownership and issues its own.
+
 ### G3: authorize the service account on the issuer
 
 This is the step people miss, and skipping it produces a 403 that explains
