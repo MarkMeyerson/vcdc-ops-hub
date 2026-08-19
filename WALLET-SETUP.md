@@ -128,8 +128,19 @@ signs them.
    create a project, name it `vcdc-wallet`.
 2. APIs and Services, Library, search "Google Wallet API", Enable.
 3. IAM and Admin, Service Accounts, Create service account. Name it
-   `vcdc-wallet-passes`. Skip the optional role and user steps, it needs no
-   project roles.
+   `vcdc-wallet-passes`.
+
+   **Grant it no roles.** The console offers a Permissions step with a role
+   picker. Leave it empty and continue. This account does not need Owner,
+   Editor, or any other project role: its Wallet permission comes entirely
+   from being added to the issuer's Users list in G3. Granting Owner here
+   would give a key that lives in an environment variable full control of
+   the Google Cloud project.
+
+   The account created 2026-08-19 is
+   `vcdc-wallet-passes@vcdc-wallet.iam.gserviceaccount.com`, in project
+   `vcdc-wallet` under the `sherpatechai-org` organization. That address is
+   what G3 asks for.
 4. Open the service account, Keys tab, Add key, Create new key, JSON. A
    `.json` file downloads. This is a private key: treat it like a password
    and do not commit it.
