@@ -137,10 +137,10 @@ signs them.
    would give a key that lives in an environment variable full control of
    the Google Cloud project.
 
-   The account created 2026-08-19 is
-   `vcdc-wallet-passes@vcdc-wallet.iam.gserviceaccount.com`, in project
-   `vcdc-wallet` under the `sherpatechai-org` organization. That address is
-   what G3 asks for.
+   The account in use since 2026-08-19 is
+   `vcdc-wallet-passes@vcdc-wallet-2.iam.gserviceaccount.com`, in project
+   `vcdc-wallet-2`, created under `sherpatechai@gmail.com` with **no
+   organization**. That address is what G3 asks for.
 4. Open the service account, Keys tab, Add key, Create new key, JSON. A
    `.json` file downloads. This is a private key: treat it like a password
    and do not commit it.
@@ -184,10 +184,17 @@ place everywhere else:
 4. Override parent's policy, add a rule, enforcement Off, Save.
 5. Wait a few minutes for propagation, then create the JSON key.
 
-If overriding is not acceptable, the alternative is to create the Cloud
-project under a Google account with no organization attached, where the
-policy does not apply. That adds another account to the eventual club
-handoff, so prefer the scoped override.
+**What we actually did, and would do again.** We took the second route: a
+Google account with no organization attached, where the policy simply does
+not apply. The first project (`vcdc-wallet`, under `sherpatechai-org`) was
+abandoned and can be deleted. Creating a fresh project took about five
+minutes and touched no security settings, which beat granting an org admin
+role and editing an organization policy. Prefer this route unless the
+project must live inside the organization for some other reason.
+
+Watch the project chip at the top of the Cloud console when you do this.
+It is easy to create the new project and then keep working in the old one,
+which fails in exactly the same confusing way.
 
 Whichever route: the key exists only in Vercel and in `.env.local`. It is
 never committed, and it should be deleted from the service account when the
