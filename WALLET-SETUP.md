@@ -69,6 +69,38 @@ The account that does this owns the issuer, but ownership is not a trap:
 the issuer has its own user list, so a club Google account can be added as
 an Admin later with nothing to migrate and no passes to re-issue.
 
+### Who owns this, and handing it to the club later
+
+Set up on 2026-08-19 under `sherpatechai@gmail.com`, with the Google
+payments profile under SherpaTech.AI (profile ID 0841-7838-2204). This was
+deliberate: it gets members a working Android pass now instead of waiting on
+a club-owned Google account. The public-facing details are the club's, not
+SherpaTech's: public business name `vespaclubofdc.org`, merchant category
+Charitable and Social Service Organizations, support links on the club
+domain. Merchant ID BCR2DN6D3KCMZ7T2.
+
+**The Merchant ID is not the Issuer ID.** The merchant ID above identifies
+the Google Pay account. The Wallet issuer ID is a separate 19-digit number
+that appears only after Wallet API access is granted. Only that number goes
+in `GOOGLE_WALLET_ISSUER_ID`.
+
+When the club takes this over, three things move separately:
+
+1. **The issuer account.** Clean handoff. Add a club Google account under
+   Users with the Admin role and it has full control. Nothing migrates and
+   no member passes are re-issued.
+2. **The payments profile.** A separate Google object tied to the
+   SherpaTech.AI identity. Confirm the transfer path with Google before
+   assuming it moves; the fallback is a new profile on a club account.
+3. **The service account** (G2). Lives in a Google Cloud project under the
+   same login. Moving it means a new service account in a club-owned
+   project, repeating G3, then swapping
+   `GOOGLE_WALLET_SERVICE_ACCOUNT_B64` in Vercel. Passes already saved to
+   members' wallets are unaffected.
+
+None of this blocks anything today. Do it whenever the club has its own
+Google account ready.
+
 ### G1: request Google Wallet API access
 
 1. Go to [pay.google.com/business/console](https://pay.google.com/business/console)
