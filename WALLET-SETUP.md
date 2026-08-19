@@ -109,7 +109,7 @@ Google account ready.
    details: The Vespa Club of D.C., Inc., and `vespaclubofdc.org` as the
    website.
 3. You get an Issuer ID immediately, a 19-digit number that looks like
-   `3388000000012345678`. Production approval follows separately, usually
+   `3388000000023174313`. Production approval follows separately, usually
    within a few business days.
 
 Vercel env var: `GOOGLE_WALLET_ISSUER_ID` = that number.
@@ -165,7 +165,7 @@ Every member pass points at one shared class. The ID must start with the
 issuer ID:
 
 ```
-GOOGLE_WALLET_CLASS_ID=3388000000012345678.vcdc-member
+GOOGLE_WALLET_CLASS_ID=3388000000023174313.vcdc-member
 ```
 
 Put all three Google variables in `.env.local`, then run:
