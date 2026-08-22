@@ -28,7 +28,19 @@ export function memberCardStatus(): { configured: boolean; missing: string[] } {
 }
 
 export function memberCardFilename(member: Member): string {
-  return `vcdc-member-${member.memberNumber}.pdf`
+  // The surname is what makes this findable once it is sitting in a phone's
+  // downloads folder next to everything else. Punctuation and accents are
+  // stripped so the name survives every mail client and filesystem.
+  const surname = member.lastName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return surname
+    ? `vcdc-member-${member.memberNumber}-${surname}.pdf`
+    : `vcdc-member-${member.memberNumber}.pdf`
 }
 
 export async function buildMemberCardPdf(member: Member): Promise<Buffer> {

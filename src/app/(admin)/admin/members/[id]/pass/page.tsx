@@ -274,6 +274,22 @@ export default async function MemberPassPage({
             ))
           )}
 
+          {appUrl && (
+            <div className="rounded-lg border border-vcdc-cog/30 p-4 text-sm">
+              <h2 className="text-sm font-medium uppercase text-vcdc-cog">
+                Members can fetch this themselves
+              </h2>
+              <p className="mt-2 text-vcdc-cog">
+                Point any member at the link below. They enter their member
+                number and last name and get the same printable card, with no
+                account and no admin in the loop.
+              </p>
+              <p className="mt-2 break-all rounded-md bg-vcdc-cog/10 p-3 font-mono text-xs">
+                {appUrl}/card
+              </p>
+            </div>
+          )}
+
           {payload && (
             <div>
               <h2 className="text-sm font-medium uppercase text-vcdc-cog">

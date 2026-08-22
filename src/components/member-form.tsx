@@ -12,7 +12,7 @@ type MemberDefaults = {
   memberNumber?: number
   firstName?: string
   lastName?: string
-  email?: string
+  email?: string | null
   phone?: string | null
   membershipTier?: string
   joinedAt?: string
@@ -84,12 +84,11 @@ export function MemberForm({
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">Email (optional)</Label>
         <Input
           id="email"
           name="email"
           type="email"
-          required
           defaultValue={v('email', defaults.email ?? '')}
         />
       </div>

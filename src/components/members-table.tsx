@@ -45,7 +45,11 @@ export function MembersTable({
                 <td className="px-4 py-3">
                   {member.firstName} {member.lastName}
                 </td>
-                <td className="px-4 py-3">{member.email}</td>
+                <td className="px-4 py-3">
+                  {member.email ?? (
+                    <span className="text-vcdc-cog/60">Not on file</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">{tierLabels[member.membershipTier]}</td>
                 <td className="px-4 py-3">{member.expiresAt}</td>
                 <td className="px-4 py-3">

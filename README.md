@@ -93,6 +93,31 @@ table unless run with `--force`.
 3. Set the Supabase Site URL to the production URL, and add it to the
    Auth redirect allow-list.
 
+## Member cards
+
+Members have no accounts and most have no email on file, so there are two
+ways in and neither involves a password.
+
+**A permanent personal link**, `/card/{member id}`, is what the club emails
+out. `/admin/members/links` lists every member's link and exports the CSV to
+mail merge from. The URL never changes, but the download links on the page
+are minted per render and expire in 30 days: the club can send it once and
+leave it in old inboxes forever while the files behind it stay short-lived
+and signed. It is also why the link improves on its own. Configure Google or
+Apple Wallet in Vercel and that button appears on every member's page at
+once, with no second email. Anyone holding a link can open that member's
+card, so it goes out individually rather than getting published.
+
+**A self-serve lookup** at `/card` covers anyone who lost the email: member
+number plus last name returns the same PDF. That pair is the only thing a
+member can prove, and it is already printed on the card they carry. The form
+never says which half was wrong, so it cannot be walked to enumerate the
+roster.
+
+Admins generate all three credential formats per member at
+`/admin/members/{id}/pass`. Importing the club roster is covered in
+[MEMBER-IMPORT.md](MEMBER-IMPORT.md).
+
 ## Rotating QR_SIGNING_SECRET
 
 In use since Slice 2. It signs the QR payload on every membership card
@@ -109,6 +134,7 @@ src/proxy.ts                 session refresh + route gating (Next 16 middleware)
 src/app/login                magic link request (+ admin password fallback)
 src/app/auth/confirm         token-hash verifyOtp callback
 src/app/(admin)/admin        admin area (role: admin)
+src/app/card                 member card: /card lookup, /card/{id} personal link
 src/app/api/wallet/apple     token-guarded .pkpass download
 src/app/api/wallet/google    token-guarded Save to Google Wallet redirect
 src/app/api/wallet/pdf       token-guarded printable card download
@@ -119,8 +145,10 @@ src/lib/qr                   member QR payload build + verify
 src/lib/wallet               Apple pass, Google pass, download tokens, icons
 src/lib/pdf                  printable membership card
 src/lib/display.ts           shared labels, date formatting, app origin
+src/lib/member-links.ts      per-member card URL + mail merge CSV
 supabase/migrations          schema + RLS, run in order
 scripts/seed.ts              admin bootstrap + sample data
+scripts/import-members.ts    roster import (npm run import:members / import:sql)
 scripts/smoke.ts             in-memory card pipeline test (npm run smoke)
 scripts/google-wallet-class.ts  Google class create (npm run google:class)
 ```

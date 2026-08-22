@@ -26,7 +26,12 @@ import {
   googleWalletStatus,
   readClassId,
 } from '../src/lib/wallet/google'
-import { buildMemberCardPdf, memberCardStatus } from '../src/lib/pdf/card'
+import {
+  buildMemberCardPdf,
+  memberCardFilename,
+  memberCardStatus,
+} from '../src/lib/pdf/card'
+import { CSV_HEADERS, memberCardUrl, membersCsv } from '../src/lib/member-links'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -232,6 +237,63 @@ async function main() {
   )
   process.env.QR_SIGNING_SECRET = savedSecret
   console.log('card status reporting ok')
+
+
+  // 9. Card filename. Members save this to a phone, so the surname has to
+  //    be in it, and it has to survive punctuation and accents intact.
+  assert(
+    memberCardFilename(member) === 'vcdc-member-10001-member.pdf',
+    `unexpected filename: ${memberCardFilename(member)}`
+  )
+  assert(
+    memberCardFilename({ ...member, memberNumber: 24037, lastName: 'Di Maggio' }) ===
+      'vcdc-member-24037-di-maggio.pdf',
+    'spaces in a surname should become hyphens'
+  )
+  assert(
+    memberCardFilename({ ...member, memberNumber: 24005, lastName: "O'Brien-Ryan" }) ===
+      'vcdc-member-24005-o-brien-ryan.pdf',
+    'punctuation in a surname should collapse to hyphens'
+  )
+  assert(
+    memberCardFilename({ ...member, memberNumber: 25096, lastName: 'Togliàtti' }) ===
+      'vcdc-member-25096-togliatti.pdf',
+    'accents should be folded, not dropped with the letter'
+  )
+  console.log('card filename ok')
+
+
+  // 10. Mail merge CSV. This is the file the club sends members their cards
+  //     from, so a broken quote or a missing link is 96 emails gone wrong.
+  process.env.NEXT_PUBLIC_APP_URL = 'https://example.org/'
+  const csv = membersCsv([
+    member,
+    { ...member, id: '9c1d4a70-2222-4e6f-8b1a-fedcbafedcba', memberNumber: 24001, firstName: 'Ana', lastName: 'Marie "Nina" Diaz' },
+  ])
+  const csvLines = csv.split('\r\n')
+  assert(csv.charCodeAt(0) === 0xfeff, 'CSV needs a BOM for Excel')
+  assert(
+    csvLines[0] === `﻿${CSV_HEADERS.join(',')}`,
+    `unexpected CSV header: ${csvLines[0]}`
+  )
+  assert(
+    csvLines[1]?.includes(`https://example.org/card/${memberId}`) === true,
+    'CSV row is missing the card link, or the trailing slash was not trimmed'
+  )
+  assert(
+    csvLines[2]?.includes('"Marie ""Nina"" Diaz"') === true,
+    'CSV does not escape quotes inside a name'
+  )
+  assert(csvLines.length === 4, `expected 2 rows and a trailing newline, got ${csvLines.length - 1}`)
+
+  const savedAppUrl = process.env.NEXT_PUBLIC_APP_URL
+  delete process.env.NEXT_PUBLIC_APP_URL
+  assert(
+    memberCardUrl(member) === null,
+    'card URL should be null without NEXT_PUBLIC_APP_URL, never a relative string'
+  )
+  process.env.NEXT_PUBLIC_APP_URL = savedAppUrl
+  console.log('member links CSV ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }

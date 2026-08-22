@@ -21,5 +21,10 @@ npm-debug.log*
 .env.local
 .env*.local
 
+# member data: this repo is public, and the roster is the credential.
+# /card authenticates on member number plus last name, so publishing the
+# sheet would hand out every card. Real files stay local and in Supabase.
+/documents/
+
 # typescript
 *.tsbuildinfo

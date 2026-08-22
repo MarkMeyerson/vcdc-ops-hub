@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke.ts",
     "seed": "tsx scripts/seed.ts",
-    "google:class": "tsx --env-file-if-exists=.env.local scripts/google-wallet-class.ts"
+    "google:class": "tsx --env-file-if-exists=.env.local scripts/google-wallet-class.ts",
+    "import:members": "tsx --env-file-if-exists=.env.local scripts/import-members.ts",
+    "import:sql": "tsx scripts/import-members.ts --sql"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

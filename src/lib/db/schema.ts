@@ -11,8 +11,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
-// Drizzle mirror of supabase/migrations/0001_schema.sql. The SQL migration
-// is the source of truth; keep the two in sync when the schema changes.
+// Drizzle mirror of supabase/migrations/. The SQL migrations are
+// the source of truth; keep the two in sync when the schema changes.
 
 export const members = pgTable(
   'members',
@@ -21,7 +21,8 @@ export const members = pgTable(
     memberNumber: integer('member_number').unique().notNull(),
     firstName: text('first_name').notNull(),
     lastName: text('last_name').notNull(),
-    email: text('email').unique().notNull(),
+    // Nullable: most of the imported roster has no address on file yet.
+    email: text('email').unique(),
     phone: text('phone'),
     membershipTier: text('membership_tier', {
       enum: ['regular', 'lifetime', 'honorary'],

@@ -12,7 +12,15 @@ const memberSchema = z.object({
   memberNumber: z.coerce.number().int().min(1, 'Member number is required'),
   firstName: z.string().trim().min(1, 'First name is required'),
   lastName: z.string().trim().min(1, 'Last name is required'),
-  email: z.string().trim().email('A valid email is required'),
+  // Optional: the imported roster has no address for most members, and
+  // an admin editing one of those rows must not be forced to invent one.
+  email: z
+    .string()
+    .trim()
+    .transform((v) => (v === '' ? null : v))
+    .refine((v) => v === null || z.email().safeParse(v).success, {
+      message: 'Enter a valid email or leave it blank',
+    }),
   phone: z
     .string()
     .trim()

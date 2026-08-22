@@ -41,13 +41,16 @@ export async function updateSession(request: NextRequest) {
   }
 
   const path = request.nextUrl.pathname
-  // /waiver stays public forever (guests never log in). /auth handles the
-  // magic-link callback. Everything else under /admin and /ride needs a user.
+  // /waiver stays public forever (guests never log in). /card is the
+  // member card lookup, which members reach without an account. /auth
+  // handles the magic-link callback. Everything else under /admin and
+  // /ride needs a user.
   const isPublic =
     path === '/' ||
     path === '/login' ||
     path.startsWith('/auth') ||
-    path.startsWith('/waiver')
+    path.startsWith('/waiver') ||
+    path.startsWith('/card')
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
