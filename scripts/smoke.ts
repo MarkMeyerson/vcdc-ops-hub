@@ -32,6 +32,12 @@ import {
   memberCardStatus,
 } from '../src/lib/pdf/card'
 import { CSV_HEADERS, memberCardUrl, membersCsv } from '../src/lib/member-links'
+import {
+  FLAG_ORDER,
+  FLAG_SPECS,
+  reviewRoster,
+  type Flag,
+} from '../src/lib/member-health'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -294,6 +300,91 @@ async function main() {
   )
   process.env.NEXT_PUBLIC_APP_URL = savedAppUrl
   console.log('member links CSV ok')
+
+
+  // 11. Roster review. The admin dashboard decides what needs a human from
+  //     these rules, so a wrong one either hides a broken record or sends
+  //     someone chasing a member who is fine.
+  const today = '2026-08-22'
+  const base = { ...member, email: 'someone@example.com', phone: '202-555-0100' }
+
+  const roster: Member[] = [
+    // Healthy: full record, current membership, real-looking number.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000001', memberNumber: 24001, firstName: 'Fine', lastName: 'Member', membershipTier: 'regular', joinedAt: '2024-03-04', expiresAt: '2026-12-31' },
+    // Imported from the sheet: no email, January placeholder join date.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000002', memberNumber: 24002, firstName: 'Sheet', lastName: 'Import', email: null, phone: null, membershipTier: 'regular', joinedAt: '2024-01-01', expiresAt: '2026-12-31' },
+    // Test row left from setup: number is below the club's YYnnn scheme.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000003', memberNumber: 10001, firstName: 'Test', lastName: 'Row', membershipTier: 'regular', joinedAt: '2026-07-16', expiresAt: '2027-07-16' },
+    // Lapsed.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000004', memberNumber: 24004, firstName: 'Lapsed', lastName: 'Rider', membershipTier: 'regular', joinedAt: '2024-05-05', expiresAt: '2026-06-30' },
+    // Renewing inside the window.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000005', memberNumber: 24005, firstName: 'Renewing', lastName: 'Rider', membershipTier: 'regular', joinedAt: '2024-05-05', expiresAt: '2026-10-02' },
+    // Dates contradict each other.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000006', memberNumber: 24006, firstName: 'Backwards', lastName: 'Dates', membershipTier: 'regular', joinedAt: '2027-01-01', expiresAt: '2026-12-31' },
+    // Tier says never lapses, date says next month.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000007', memberNumber: 24007, firstName: 'Forever', lastName: 'Member', membershipTier: 'lifetime', joinedAt: '2024-01-15', expiresAt: '2026-09-30' },
+    // Two rows, one name, two numbers.
+    { ...base, id: 'a0000000-0000-4000-8000-000000000008', memberNumber: 25008, firstName: 'Jason', lastName: 'Estrada', membershipTier: 'regular', joinedAt: '2025-02-02', expiresAt: '2026-12-31' },
+    { ...base, id: 'a0000000-0000-4000-8000-000000000009', memberNumber: 26009, firstName: 'Jason', lastName: 'Estrada', membershipTier: 'regular', joinedAt: '2026-02-02', expiresAt: '2026-12-31' },
+  ]
+
+  const review = reviewRoster(roster, today)
+
+  const numbersWith = (flag: Flag) =>
+    review.byFlag[flag].map((m) => m.memberNumber).sort((a, b) => a - b)
+
+  const sameNumbers = (flag: Flag, expected: number[]) =>
+    JSON.stringify(numbersWith(flag)) === JSON.stringify(expected)
+
+  assert(review.total === 9, 'review should count the whole roster')
+  assert(
+    !review.flaggedMembers.some((f) => f.member.memberNumber === 24001),
+    'a member with a full record and a current membership should not be flagged'
+  )
+  assert(sameNumbers('expiry-before-joined', [24006]), 'backwards dates missed')
+  assert(sameNumbers('number-out-of-scheme', [10001]), 'test row not caught')
+  assert(sameNumbers('permanent-tier-expires', [24007]), 'lifetime expiry missed')
+  assert(sameNumbers('duplicate-name', [25008, 26009]), 'duplicate names missed')
+  assert(sameNumbers('expired', [24004]), 'expired detection wrong')
+  // 24007 belongs here as well as in the problem list: its date really is
+  // imminent, whatever its tier claims.
+  assert(
+    sameNumbers('expiring-soon', [24005, 24007]),
+    `expiring-soon window wrong: ${numbersWith('expiring-soon')}`
+  )
+  assert(sameNumbers('no-email', [24002]), 'missing email detection wrong')
+  assert(
+    sameNumbers('placeholder-joined', [24002]),
+    'January placeholder should only flag when the email is missing too'
+  )
+
+  // Expired and expiring-soon are exclusive: a lapsed member is not also
+  // about to lapse, and showing them in both lists double-counts the work.
+  assert(
+    !review.byFlag['expiring-soon'].some((m) => m.expiresAt < today),
+    'an expired member should not also count as expiring soon'
+  )
+
+  // Counts are of people. 24007 carries two problems and must count once.
+  const problemPeople = new Set(
+    review.flaggedMembers
+      .filter((f) => f.flags.some((flag) => FLAG_SPECS[flag].kind === 'problem'))
+      .map((f) => f.member.memberNumber)
+  )
+  assert(
+    review.countsByKind.problem === problemPeople.size,
+    `problem count should be people not findings: ${review.countsByKind.problem} vs ${problemPeople.size}`
+  )
+  assert(
+    review.countsByKind.problem === 5,
+    `expected 5 members with problems, got ${review.countsByKind.problem}`
+  )
+
+  // Every flag that can be raised has a spec, or the page renders blanks.
+  for (const flag of FLAG_ORDER) {
+    assert(FLAG_SPECS[flag]?.label, `flag ${flag} has no spec`)
+  }
+  console.log('roster review ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }

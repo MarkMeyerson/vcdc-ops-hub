@@ -93,6 +93,26 @@ table unless run with `--force`.
 3. Set the Supabase Site URL to the production URL, and add it to the
    Auth redirect allow-list.
 
+## Roster review
+
+`/admin` counts what needs a person and `/admin/members/review` lists it,
+grouped by what is wrong. The rules live in one place,
+[src/lib/member-health.ts](src/lib/member-health.ts), as pure functions over
+the roster, and they split into three kinds:
+
+- **Problems**: the record is wrong, not thin. Dates that contradict each
+  other, a tier that says never-lapses against a date that says next month,
+  a member number that does not follow the club's YYnnn scheme (which is how
+  leftover test rows surface), and one name under two numbers.
+- **Missing information**: no email, no phone, or a join date that came from
+  the member number rather than from a record. Expected, since the roster was
+  imported from a two-column sheet.
+- **Renewals**: expired, and expiring within 60 days.
+
+Counts are of people, not findings: a member with three gaps is one member to
+chase. Every row links to that member's edit form, because that is where all
+of it is fixed.
+
 ## Member cards
 
 Members have no accounts and most have no email on file, so there are two
@@ -146,6 +166,7 @@ src/lib/wallet               Apple pass, Google pass, download tokens, icons
 src/lib/pdf                  printable membership card
 src/lib/display.ts           shared labels, date formatting, app origin
 src/lib/member-links.ts      per-member card URL + mail merge CSV
+src/lib/member-health.ts     roster checks behind the dashboard + review
 supabase/migrations          schema + RLS, run in order
 scripts/seed.ts              admin bootstrap + sample data
 scripts/import-members.ts    roster import (npm run import:members / import:sql)

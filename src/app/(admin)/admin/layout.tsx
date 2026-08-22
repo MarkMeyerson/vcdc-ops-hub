@@ -19,6 +19,12 @@ export default async function AdminLayout({
               <Link href="/admin/members" className="hover:text-white">
                 Members
               </Link>
+              <Link href="/admin/members/review" className="hover:text-white">
+                Review
+              </Link>
+              <Link href="/admin/members/links" className="hover:text-white">
+                Card links
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm text-white/70">
