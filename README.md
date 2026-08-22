@@ -5,15 +5,26 @@ Replaces the paper ride waiver flow: admin manages members, members carry a
 QR wallet pass, ride leaders scan riders (offline-capable), guests sign a
 public waiver.
 
-Build brief: `VCDCCLAUDECODEBRIEF.md` in this repo. Current state: Slice 1
-(schema, RLS, admin auth, member CRUD) accepted. Slice 2 (Apple Wallet) is
-built and parked on Apple Developer credentials. Slice 3 (Google Wallet) is
-built and needs a Google issuer ID, which is free. A printable PDF card was
-added alongside them: it needs no vendor account at all, so it is the card
-the club can send today, and it covers iPhone members while Apple is
-pending. All three carry the same signed member QR, so one scan resolves to
-one member whichever the rider shows. The setup click-path for each is
-`WALLET-SETUP.md`.
+Build brief: `VCDCCLAUDECODEBRIEF.md` in this repo.
+
+Current state:
+
+- **Slice 1** (schema, RLS, admin auth, member CRUD) accepted.
+- **Slice 2, Apple Wallet.** Built, parked on Apple Developer enrollment
+  ($99 a year, the club's call). The route reports its missing variables
+  rather than failing, and the button stays hidden until they are set.
+- **Slice 3, Google Wallet.** Built, and configured in production since
+  2026-08-22. The save link is generated and signed; a real save on a real
+  Android phone has not been confirmed yet.
+- **Printable PDF card**, added alongside them. Needs no vendor account, so
+  it is what every member can be sent today and what covers iPhone until
+  Apple is sorted.
+- **Roster**: 95 members imported from the club's 2026 master sheet. See
+  [MEMBER-IMPORT.md](MEMBER-IMPORT.md).
+
+All three credentials carry the same signed member QR, so one scan resolves
+to one member whichever the rider shows. The setup click-path for the two
+wallets is `WALLET-SETUP.md`.
 
 ## Stack
 
@@ -65,8 +76,10 @@ before pushing:
 
 - `npm run lint`
 - `npm run typecheck`
-- `npm run smoke` (Apple signing, Google save JWT, and PDF card all built
-  in memory with throwaway keys, no env or network needed)
+- `npm run smoke` (14 checks: Apple signing, Google save JWT, and the PDF
+  card all built in memory with throwaway keys, plus the roster review
+  rules, the bulk-update plan including every rejection path, the mail
+  merge CSV, and member id validation. No env, no network, no database)
 - `npm run build`
 
 Environment variables are validated where they are used: server modules
