@@ -8,6 +8,7 @@ import {
   memberCardStatus,
 } from '@/lib/pdf/card'
 import { verifyDownloadToken } from '@/lib/wallet/token'
+import { isUuid } from '@/lib/uuid'
 
 // Printable membership card download, same signed expiring token guard as
 // the Apple and Google routes: /api/wallet/pdf/{id}?t={token}.
@@ -26,7 +27,7 @@ export async function GET(
   const { memberId } = await params
   const token = request.nextUrl.searchParams.get('t')
 
-  if (!/^[0-9a-f-]{36}$/.test(memberId)) {
+  if (!isUuid(memberId)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 

@@ -342,10 +342,15 @@ export function planImport(csvText: string, roster: Member[]): ImportPlan {
     }
   }
 
-  const takenElsewhere = new Set(
-    roster
-      .filter((m) => m.email)
-      .map((m) => `${m.email!.toLowerCase()}:${m.memberNumber}`)
+  // An address currently held by somebody else is only a collision if that
+  // somebody is keeping it. The club roster has several couples on it, and
+  // "these two spouses have each other's address" is a correction somebody
+  // will make, which means two members swapping addresses in one file has to
+  // be allowed rather than rejected as a duplicate.
+  const releasing = new Set(
+    changes
+      .filter((c) => c.changes.some((f) => f.field === 'email'))
+      .map((c) => c.memberNumber)
   )
   for (const change of changes) {
     const email = change.changes.find((c) => c.field === 'email')?.to
@@ -355,11 +360,11 @@ export function planImport(csvText: string, roster: Member[]): ImportPlan {
         m.email?.toLowerCase() === email.toLowerCase() &&
         m.memberNumber !== change.memberNumber
     )
-    if (owner && !takenElsewhere.has(`${email.toLowerCase()}:${change.memberNumber}`)) {
+    if (owner && !releasing.has(owner.memberNumber)) {
       errors.push({
         line: 0,
         reference: String(change.memberNumber),
-        message: `${email} already belongs to ${owner.firstName} ${owner.lastName} (${owner.memberNumber}).`,
+        message: `${email} already belongs to ${owner.firstName} ${owner.lastName} (${owner.memberNumber}), whose address this file does not change.`,
       })
     }
   }

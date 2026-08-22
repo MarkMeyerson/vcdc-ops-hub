@@ -39,6 +39,7 @@ import {
   type Flag,
 } from '../src/lib/member-health'
 import { buildTemplate, planImport } from '../src/lib/member-import'
+import { isUuid } from '../src/lib/uuid'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -487,6 +488,33 @@ async function main() {
     'one address on two members should be rejected'
   )
 
+  // Two members swapping addresses is a correction somebody will make (the
+  // roster has couples on it), and the end state is valid, so it must not be
+  // rejected as a duplicate.
+  const swapRoster: Member[] = [
+    { ...importRoster[0]!, email: 'his@example.com' },
+    { ...importRoster[1]!, email: 'hers@example.com' },
+  ]
+  const swap = planImport(
+    'member_number,email\r\n24001,hers@example.com\r\n24002,his@example.com',
+    swapRoster
+  )
+  assert(
+    swap.errors.length === 0,
+    `swapping two addresses should be allowed: ${JSON.stringify(swap.errors)}`
+  )
+  assert(swap.changes.length === 2, 'both sides of a swap should change')
+
+  // Taking an address from somebody who is keeping it is still a collision.
+  const steal = planImport(
+    'member_number,email\r\n24001,hers@example.com',
+    swapRoster
+  )
+  assert(
+    steal.errors.length === 1 && steal.changes.length === 0,
+    'taking an address nobody is releasing should still be rejected'
+  )
+
   // A file that is not the template at all.
   const wrongFile = planImport('name,notes\r\nSomebody,hello', importRoster)
   assert(
@@ -494,6 +522,27 @@ async function main() {
     'a file without member_number should say so'
   )
   console.log('bulk update ok')
+
+
+  // 13. Member id validation. These ids arrive from links members were
+  //     emailed, so they turn up truncated by mail clients and hand-retyped.
+  //     A loose check reaches a uuid comparison, which raises in Postgres
+  //     rather than returning no rows, and the friendly "we do not recognise
+  //     that link" page becomes a 500.
+  assert(isUuid('2b7f3e28-1111-4a5b-9c3d-abcdefabcdef'), 'a real uuid was rejected')
+  assert(isUuid('2B7F3E28-1111-4A5B-9C3D-ABCDEFABCDEF'), 'uppercase uuid rejected')
+  for (const bad of [
+    '------------------------------------', // 36 hyphens
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', // 36 hex, no dashes
+    '2b7f3e28-1111-4a5b-9c3d-abcdefabcde', // one short
+    '2b7f3e28-1111-4a5b-9c3d-abcdefabcdefa', // one long
+    '2b7f3e28_1111_4a5b_9c3d_abcdefabcdef', // underscores
+    '2b7f3e28-1111-4a5b-9c3d-abcdefabcdeg', // g is not hex
+    '',
+  ]) {
+    assert(!isUuid(bad), `${JSON.stringify(bad)} should not pass as a member id`)
+  }
+  console.log('member id validation ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }

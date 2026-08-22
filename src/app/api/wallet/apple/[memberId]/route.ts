@@ -4,6 +4,7 @@ import { db } from '@/lib/db/client'
 import { members } from '@/lib/db/schema'
 import { appleWalletStatus, buildApplePass } from '@/lib/wallet/apple'
 import { verifyDownloadToken } from '@/lib/wallet/token'
+import { isUuid } from '@/lib/uuid'
 
 // Apple Wallet pass download. Unauthenticated by design (the member taps
 // this from an email or scans it from the admin pass page), so the URL
@@ -22,7 +23,7 @@ export async function GET(
   const { memberId } = await params
   const token = request.nextUrl.searchParams.get('t')
 
-  if (!/^[0-9a-f-]{36}$/.test(memberId)) {
+  if (!isUuid(memberId)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 

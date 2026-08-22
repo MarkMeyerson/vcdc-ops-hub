@@ -4,6 +4,7 @@ import { db } from '@/lib/db/client'
 import { members } from '@/lib/db/schema'
 import { buildGoogleSaveUrl, googleWalletStatus } from '@/lib/wallet/google'
 import { verifyDownloadToken } from '@/lib/wallet/token'
+import { isUuid } from '@/lib/uuid'
 
 // Save to Google Wallet redirect, the Android counterpart to the Apple
 // .pkpass download. Same signed expiring token guard, so passes stay
@@ -24,7 +25,7 @@ export async function GET(
   const { memberId } = await params
   const token = request.nextUrl.searchParams.get('t')
 
-  if (!/^[0-9a-f-]{36}$/.test(memberId)) {
+  if (!isUuid(memberId)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 

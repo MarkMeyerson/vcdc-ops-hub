@@ -8,6 +8,7 @@ import { memberCardStatus } from '@/lib/pdf/card'
 import { appleWalletStatus } from '@/lib/wallet/apple'
 import { googleWalletStatus } from '@/lib/wallet/google'
 import { createDownloadToken } from '@/lib/wallet/token'
+import { isUuid } from '@/lib/uuid'
 
 // A member's permanent card link, the one the club emails out.
 //
@@ -16,10 +17,10 @@ import { createDownloadToken } from '@/lib/wallet/token'
 // That split is the point: the club can send this link once and keep it in
 // old emails forever, while the files behind it stay short-lived and signed.
 //
-// It is also why the link works as a placeholder. Apple and Google are not
-// configured yet, so today the page offers the printable card alone. Switch
-// either one on in Vercel and its button appears here for every member at
-// once, with no second email.
+// It is also why the link works as a placeholder. Each wallet's button
+// appears only once that wallet is configured, so switching one on in
+// Vercel adds it here for every member at once with no second email. Apple
+// is the one still waiting, on the club's developer enrollment.
 //
 // Members have no accounts, so holding the URL is what proves membership.
 // The page shows nothing the printed card does not already show.
@@ -72,7 +73,7 @@ export default async function MemberCardPage({
 
   // Anything that is not a uuid cannot be a member, and asking Postgres to
   // compare it against a uuid column raises rather than returning nothing.
-  if (!/^[0-9a-f-]{36}$/.test(memberId)) return <NotRecognised />
+  if (!isUuid(memberId)) return <NotRecognised />
 
   const [member] = await db
     .select()

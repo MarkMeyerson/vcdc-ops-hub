@@ -92,6 +92,21 @@ export async function applyImport(
   }
 
   await db.transaction(async (tx) => {
+    // Email is unique and these updates run one statement at a time, so two
+    // members swapping addresses would collide on whichever went first even
+    // though the end state is valid. Releasing every address that is about
+    // to move, before assigning any, makes the order stop mattering. It is
+    // invisible outside the transaction.
+    const movingEmail = plan.changes.filter((row) =>
+      row.changes.some((change) => change.field === 'email')
+    )
+    for (const row of movingEmail) {
+      await tx
+        .update(members)
+        .set({ email: null })
+        .where(eq(members.id, row.memberId))
+    }
+
     for (const row of plan.changes) {
       const patch: Record<string, string> = {}
       for (const change of row.changes) {
