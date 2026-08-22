@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { members } from '../src/lib/db/schema'
+import { parseCsv } from '../src/lib/csv'
 
 const SOURCE = join(process.cwd(), 'documents', 'members-2026.csv')
 
@@ -42,48 +43,6 @@ type Prepared = {
   joinedAt: string
   line: number
   raw: string
-}
-
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = []
-  let row: string[] = []
-  let field = ''
-  let quoted = false
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (quoted) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"'
-          i++
-        } else {
-          quoted = false
-        }
-      } else {
-        field += ch
-      }
-      continue
-    }
-    if (ch === '"') {
-      quoted = true
-    } else if (ch === ',') {
-      row.push(field)
-      field = ''
-    } else if (ch === '\n') {
-      row.push(field)
-      rows.push(row)
-      row = []
-      field = ''
-    } else if (ch !== '\r') {
-      field += ch
-    }
-  }
-  if (field !== '' || row.length > 0) {
-    row.push(field)
-    rows.push(row)
-  }
-  return rows
 }
 
 function readSource(): SourceRow[] {

@@ -38,6 +38,7 @@ import {
   reviewRoster,
   type Flag,
 } from '../src/lib/member-health'
+import { buildTemplate, planImport } from '../src/lib/member-import'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -385,6 +386,114 @@ async function main() {
     assert(FLAG_SPECS[flag]?.label, `flag ${flag} has no spec`)
   }
   console.log('roster review ok')
+
+
+  // 12. Bulk update round trip. This writes to the whole roster at once, so
+  //     the rules that keep it safe are worth pinning: blanks leave values
+  //     alone, and any error rejects the entire file.
+  const importRoster: Member[] = [
+    { ...base, id: 'b0000000-0000-4000-8000-000000000001', memberNumber: 24001, firstName: 'David', lastName: 'Mangano', email: null, phone: null, membershipTier: 'regular', joinedAt: '2024-01-01', expiresAt: '2026-12-31' },
+    { ...base, id: 'b0000000-0000-4000-8000-000000000002', memberNumber: 24002, firstName: 'Ana', lastName: 'Marie Diaz', email: 'ana@example.com', phone: null, membershipTier: 'regular', joinedAt: '2024-01-01', expiresAt: '2026-12-31' },
+  ]
+
+  // The template is what the club edits, so it must round trip unchanged.
+  const template = buildTemplate(importRoster)
+  const untouched = planImport(template, importRoster)
+  assert(untouched.errors.length === 0, 'the template should read cleanly')
+  assert(
+    untouched.changes.length === 0,
+    'downloading and re-uploading the template unchanged should change nothing'
+  )
+  assert(untouched.unchangedRows === 2, 'both rows should be seen')
+
+  // A partly filled sheet: one email added, one name corrected, one date in
+  // the format Excel produces, and blanks everywhere else.
+  const filled = [
+    'member_number,first_name,last_name,email,phone,tier,joined,expires',
+    '24001,David,Mangano,david@example.com,,,3/4/2024,',
+    '24002,Ana,Diaz,,202-555-0143,lifetime,,',
+  ].join('\r\n')
+
+  const plan = planImport(filled, importRoster)
+  assert(plan.errors.length === 0, `unexpected errors: ${JSON.stringify(plan.errors)}`)
+  assert(plan.changes.length === 2, `expected 2 members changed, got ${plan.changes.length}`)
+
+  const first = plan.changes.find((c) => c.memberNumber === 24001)
+  const changed = (row: typeof first, field: string) =>
+    row?.changes.find((c) => c.field === field)
+
+  assert(changed(first, 'email')?.to === 'david@example.com', 'email not picked up')
+  assert(changed(first, 'joinedAt')?.to === '2024-03-04', 'US date not converted to ISO')
+  assert(
+    !changed(first, 'expiresAt') && !changed(first, 'phone'),
+    'a blank cell must leave the current value alone, not clear it'
+  )
+  assert(
+    !changed(first, 'firstName') && !changed(first, 'lastName'),
+    'an unchanged name should not be reported as a change'
+  )
+
+  const second = plan.changes.find((c) => c.memberNumber === 24002)
+  assert(changed(second, 'lastName')?.to === 'Diaz', 'name correction missed')
+  assert(changed(second, 'lastName')?.from === 'Marie Diaz', 'previous value wrong')
+  assert(changed(second, 'membershipTier')?.to === 'lifetime', 'tier change missed')
+  assert(
+    !changed(second, 'email'),
+    'a blank email must not clear an address that is already on file'
+  )
+
+  // Every rejection path. Each of these must stop the whole file.
+  const rejected: [string, string][] = [
+    ['24001,,,not-an-email,,,,', 'a bad email'],
+    ['24001,,,,,platinum,,', 'an unknown tier'],
+    ['24001,,,,,,,31/12/2026', 'an unreadable date'],
+    ['24001,,,,,,,2026-02-31', 'a date that does not exist'],
+    ['24001,,,,,,2027-01-01,2026-12-31', 'joined after expires'],
+    ['99999,,,,,,,', 'a member number that does not exist'],
+    ['notanumber,,,,,,,', 'a member number that is not a number'],
+    ['24001,,,,,,,\r\n24001,,,,,,,', 'the same member twice'],
+  ]
+  for (const [row, description] of rejected) {
+    const bad = planImport(
+      `member_number,first_name,last_name,email,phone,tier,joined,expires\r\n${row}`,
+      importRoster
+    )
+    assert(bad.errors.length > 0, `${description} should be rejected`)
+    assert(
+      bad.changes.length === 0,
+      `${description} must reject the whole file, not just its own row`
+    )
+  }
+
+  // An address already on another member would break the unique index, and
+  // the raw database error would name a constraint rather than a person.
+  const collision = planImport(
+    'member_number,email\r\n24001,ana@example.com',
+    importRoster
+  )
+  assert(
+    collision.errors[0]?.message.includes('Ana'),
+    'an email taken by another member should name that member'
+  )
+
+  // Two rows claiming one address fails the same way, before the database
+  // sees it.
+  const doubleAssigned = planImport(
+    'member_number,email\r\n24001,shared@example.com\r\n24002,shared@example.com',
+    importRoster
+  )
+  assert(
+    doubleAssigned.errors.length > 0 && doubleAssigned.changes.length === 0,
+    'one address on two members should be rejected'
+  )
+
+  // A file that is not the template at all.
+  const wrongFile = planImport('name,notes\r\nSomebody,hello', importRoster)
+  assert(
+    wrongFile.errors[0]?.message.includes('member_number'),
+    'a file without member_number should say so'
+  )
+  console.log('bulk update ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }

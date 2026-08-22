@@ -113,6 +113,29 @@ Counts are of people, not findings: a member with three gaps is one member to
 chase. Every row links to that member's edit form, because that is where all
 of it is fixed.
 
+## Bulk update from a spreadsheet
+
+The everyday path is the admin UI, one member at a time.
+`/admin/members/import` exists for the catch-up: the roster arrived as a
+two-column sheet, so most members are missing the same few fields and
+collecting them is spreadsheet work. Download the roster pre-filled, fill
+the gaps, upload it back.
+
+Two rules make it safe to hand to somebody who is not a developer, and
+both are pinned by smoke tests:
+
+- **A blank cell leaves that value alone**, never clears it. Filling in
+  twenty addresses must not wipe the other seventy-six.
+- **Nothing is written from a parse.** The upload produces a plan, the plan
+  is shown field by field, and a second deliberate action applies it. Any
+  error in any row rejects the whole file, because a half-applied
+  spreadsheet is worse than a rejected one.
+
+The uploaded text is what carries between the two steps, not the plan, so
+there is one code path from a file to a change and the browser cannot hand
+back an edited plan that skips validation. Dates read as either
+`2026-12-31` or `12/31/2026`, since Excel rewrites them on save.
+
 ## Member cards
 
 Members have no accounts and most have no email on file, so there are two
@@ -167,6 +190,8 @@ src/lib/pdf                  printable membership card
 src/lib/display.ts           shared labels, date formatting, app origin
 src/lib/member-links.ts      per-member card URL + mail merge CSV
 src/lib/member-health.ts     roster checks behind the dashboard + review
+src/lib/member-import.ts     bulk update template + upload plan
+src/lib/csv.ts               RFC 4180 parse and write, one definition
 supabase/migrations          schema + RLS, run in order
 scripts/seed.ts              admin bootstrap + sample data
 scripts/import-members.ts    roster import (npm run import:members / import:sql)
