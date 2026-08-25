@@ -10,9 +10,11 @@ Build brief: `VCDCCLAUDECODEBRIEF.md` in this repo.
 Current state:
 
 - **Slice 1** (schema, RLS, admin auth, member CRUD) accepted.
-- **Slice 2, Apple Wallet.** Built, parked on Apple Developer enrollment
-  ($99 a year, the club's call). The route reports its missing variables
-  rather than failing, and the button stays hidden until they are set.
+- **Slice 2, Apple Wallet.** Built. Apple Developer enrollment submitted
+  2026-08-22 (enrollment ID `S4N43N9YPA`), waiting on approval, then the
+  certificate steps in `WALLET-SETUP.md`. The route reports its missing
+  variables rather than failing, and the button stays hidden until all five
+  are set.
 - **Slice 3, Google Wallet.** Built, and configured in production since
   2026-08-22. The save link is generated and signed; a real save on a real
   Android phone has not been confirmed yet.

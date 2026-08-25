@@ -241,9 +241,19 @@ run again. If it fails, the error from Google is printed in full.
 
 ## Apple Wallet
 
-Parked while the club works through Apple Developer Program enrollment.
-Everything below is ready to run the moment the credentials exist. Send
-members the printable card in the meantime.
+**Status: enrollment submitted 2026-08-22, enrollment ID `S4N43N9YPA`.**
+Apple takes a day or two to approve. Everything below is ready to run the
+moment the credentials exist. Send members the printable card meanwhile;
+the "Add to Apple Wallet" button appears on every member's existing card
+link by itself once the five variables are set, with nothing re-sent.
+
+Watch for one thing when approval lands: **the enrollment ID and the Team
+ID are not guaranteed to be the same string.** `APPLE_TEAM_ID` must be the
+Team ID shown under Membership details (A1 below), not the enrollment ID
+recorded here. They often match, which is exactly why it is worth checking
+rather than assuming: a pass signed against the wrong team is rejected by
+the phone at the moment a member taps Add, long after anything logs an
+error worth reading.
 
 ### Prerequisites
 
@@ -266,6 +276,9 @@ members the printable card in the meantime.
 
 [developer.apple.com/account](https://developer.apple.com/account), scroll
 to Membership details. The Team ID is a 10-character code like `A1BC23DEF4`.
+
+Copy it from that page rather than reusing the enrollment ID from the
+confirmation email, even if the two look identical.
 
 Vercel env var: `APPLE_TEAM_ID`.
 
