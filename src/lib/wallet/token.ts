@@ -11,6 +11,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 const TOKEN_TTL_DAYS = 30
 const MAC_LENGTH = 32
 
+// Deliberately not read through envVar() (src/lib/env.ts), unlike every
+// other credential in this app: this value is live HMAC key material, and
+// every outstanding download link is currently validating against whatever
+// exact bytes are in Vercel right now. Trimming here would not fix a bug,
+// it would silently change the key and invalidate every card link already
+// emailed to a member, which is worse than the bug it would prevent.
 function secret(): string {
   const value = process.env.QR_SIGNING_SECRET
   if (!value) {

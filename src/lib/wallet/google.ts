@@ -2,6 +2,7 @@ import { createSign } from 'node:crypto'
 import type { Member } from '@/lib/db/schema'
 import { appOrigin, displayDate, tierLabels } from '@/lib/display'
 import { buildMemberQrPayload, qrSigningConfigured } from '@/lib/qr/payload'
+import { envVar } from '@/lib/env'
 
 // Google Wallet pass generation, brief Section 6. Generic class and generic
 // object carrying the same fields and the same signed QR payload as the
@@ -36,7 +37,7 @@ export function googleWalletStatus(): {
   configured: boolean
   missing: string[]
 } {
-  const missing: string[] = REQUIRED_ENV.filter((name) => !process.env[name])
+  const missing: string[] = REQUIRED_ENV.filter((name) => !envVar(name))
   if (!qrSigningConfigured()) missing.push('QR_SIGNING_SECRET')
   return { configured: missing.length === 0, missing }
 }
@@ -45,7 +46,7 @@ export function googleWalletStatus(): {
 // it survives as a single-line environment variable. Only two of its fields
 // matter here: the issuer identity and the signing key.
 export function readServiceAccount(): ServiceAccount {
-  const b64 = process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_B64
+  const b64 = envVar('GOOGLE_WALLET_SERVICE_ACCOUNT_B64')
   if (!b64) {
     throw new Error('GOOGLE_WALLET_SERVICE_ACCOUNT_B64 is not set')
   }
@@ -74,8 +75,8 @@ export function readServiceAccount(): ServiceAccount {
 // Class IDs are always "{issuerId}.{suffix}". Catching a mismatch here turns
 // a silent Google 404 at save time into a named configuration error.
 export function readClassId(): string {
-  const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID
-  const classId = process.env.GOOGLE_WALLET_CLASS_ID
+  const issuerId = envVar('GOOGLE_WALLET_ISSUER_ID')
+  const classId = envVar('GOOGLE_WALLET_CLASS_ID')
   if (!issuerId) throw new Error('GOOGLE_WALLET_ISSUER_ID is not set')
   if (!classId) throw new Error('GOOGLE_WALLET_CLASS_ID is not set')
   if (!classId.startsWith(`${issuerId}.`)) {
@@ -93,7 +94,7 @@ function localized(value: string) {
 // Stable per member, so saving the same pass twice updates it rather than
 // creating a duplicate in the member's wallet.
 export function googleObjectId(memberNumber: number): string {
-  return `${process.env.GOOGLE_WALLET_ISSUER_ID}.vcdc-member-${memberNumber}`
+  return `${envVar('GOOGLE_WALLET_ISSUER_ID')}.vcdc-member-${memberNumber}`
 }
 
 // The generic class. Shared shape for every member pass, created once by

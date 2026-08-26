@@ -3,6 +3,7 @@ import { PKPass } from 'passkit-generator'
 import type { Member } from '@/lib/db/schema'
 import { displayDate, tierLabels } from '@/lib/display'
 import { buildMemberQrPayload, qrSigningConfigured } from '@/lib/qr/payload'
+import { envVar } from '@/lib/env'
 import { solidPng } from './png'
 
 // Apple Wallet pass generation, brief Section 6. Generic style (reads like
@@ -33,9 +34,7 @@ export function appleWalletStatus(): {
   configured: boolean
   missing: string[]
 } {
-  const missing: string[] = REQUIRED_ENV.filter(
-    (name) => !process.env[name]
-  )
+  const missing: string[] = REQUIRED_ENV.filter((name) => !envVar(name))
   if (!qrSigningConfigured()) missing.push('QR_SIGNING_SECRET')
   return { configured: missing.length === 0, missing }
 }
@@ -100,8 +99,8 @@ export async function buildApplePass(member: Member): Promise<Buffer> {
 
   const passJson = {
     formatVersion: 1,
-    passTypeIdentifier: process.env.APPLE_PASS_TYPE_ID!,
-    teamIdentifier: process.env.APPLE_TEAM_ID!,
+    passTypeIdentifier: envVar('APPLE_PASS_TYPE_ID')!,
+    teamIdentifier: envVar('APPLE_TEAM_ID')!,
     organizationName: 'The Vespa Club of D.C., Inc.',
     description: 'VCDC membership card',
     serialNumber: `vcdc-member-${member.memberNumber}`,
@@ -152,10 +151,10 @@ export async function buildApplePass(member: Member): Promise<Buffer> {
       'icon@3x.png': solidPng(87, 87, SKY_BLUE),
     },
     {
-      wwdr: wwdrToPem(process.env.APPLE_WWDR_CERT_B64!),
+      wwdr: wwdrToPem(envVar('APPLE_WWDR_CERT_B64')!),
       ...p12ToPem(
-        process.env.APPLE_PASS_CERT_P12_B64!,
-        process.env.APPLE_PASS_CERT_PASSWORD!
+        envVar('APPLE_PASS_CERT_P12_B64')!,
+        envVar('APPLE_PASS_CERT_PASSWORD')!
       ),
     }
   )

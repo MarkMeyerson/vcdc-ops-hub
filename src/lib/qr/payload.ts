@@ -13,6 +13,10 @@ export function qrSigningConfigured(): boolean {
   return Boolean(process.env.QR_SIGNING_SECRET)
 }
 
+// Deliberately not read through envVar() (src/lib/env.ts): see the matching
+// note in src/lib/wallet/token.ts. This is live HMAC key material, not a
+// config string, and every already-issued QR code is validating against
+// whatever exact bytes are set today.
 function secret(): string {
   const value = process.env.QR_SIGNING_SECRET
   if (!value) {

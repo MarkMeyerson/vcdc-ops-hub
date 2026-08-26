@@ -40,6 +40,7 @@ import {
 } from '../src/lib/member-health'
 import { buildTemplate, planImport } from '../src/lib/member-import'
 import { isUuid } from '../src/lib/uuid'
+import { envVar } from '../src/lib/env'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -543,6 +544,39 @@ async function main() {
     assert(!isUuid(bad), `${JSON.stringify(bad)} should not pass as a member id`)
   }
   console.log('member id validation ok')
+
+
+  // 14. envVar() tolerance for pasted whitespace. This is the exact shape
+  //     of a real incident: a leading tab in GOOGLE_WALLET_CLASS_ID passed
+  //     Vercel's UI silently and failed every save-to-wallet request for
+  //     hours before anyone noticed. Config strings should not be that
+  //     fragile; see src/lib/env.ts for what stays out of scope on purpose.
+  process.env.SMOKE_ENV_CHECK = '\t3388000000023174313.vcdc-member  '
+  assert(
+    envVar('SMOKE_ENV_CHECK') === '3388000000023174313.vcdc-member',
+    'envVar should trim leading and trailing whitespace'
+  )
+  process.env.SMOKE_ENV_CHECK = '   '
+  assert(
+    envVar('SMOKE_ENV_CHECK') === undefined,
+    'a whitespace-only value should read as unset, not as an empty string'
+  )
+  delete process.env.SMOKE_ENV_CHECK
+  assert(
+    envVar('SMOKE_ENV_CHECK') === undefined,
+    'an actually-unset variable should still read as unset'
+  )
+
+  // The class-id check is what this incident actually broke. Confirm the
+  // exact failing shape now passes once read through envVar().
+  process.env.GOOGLE_WALLET_ISSUER_ID = '3388000000023174313'
+  process.env.GOOGLE_WALLET_CLASS_ID =
+    '\t3388000000023174313.vcdc-member'
+  assert(
+    readClassId() === '3388000000023174313.vcdc-member',
+    'a class id with pasted leading whitespace should still read correctly'
+  )
+  console.log('env var whitespace tolerance ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }

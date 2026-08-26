@@ -1,4 +1,5 @@
 import type { Member } from '@/lib/db/schema'
+import { envVar } from '@/lib/env'
 
 // Shared display helpers. One definition each; import instead of redefining
 // per component so labels and date formats never drift between the admin
@@ -24,7 +25,7 @@ export function displayDate(isoDate: string): string {
 // Canonical app origin for building absolute URLs. Normalizes any trailing
 // slash so joins never produce "https://host//path".
 export function appOrigin(): string | null {
-  const url = process.env.NEXT_PUBLIC_APP_URL
+  const url = envVar('NEXT_PUBLIC_APP_URL')
   if (!url) return null
   return url.replace(/\/+$/, '')
 }
