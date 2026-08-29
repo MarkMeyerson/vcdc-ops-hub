@@ -41,6 +41,11 @@ import {
 import { buildTemplate, planImport } from '../src/lib/member-import'
 import { isUuid } from '../src/lib/uuid'
 import { envVar } from '../src/lib/env'
+import {
+  classifyScan,
+  formatGuestNumber,
+  memberGaps,
+} from '../src/lib/scan/resolve'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -577,6 +582,77 @@ async function main() {
     'a class id with pasted leading whitespace should still read correctly'
   )
   console.log('env var whitespace tolerance ok')
+
+
+  // 15. Scan classification. A ride leader is standing in a parking lot with
+  //     a queue behind them, so the difference between "not our code",
+  //     "our code, bad signature", and "valid" has to be exact: each one is
+  //     a different conversation with the rider.
+  process.env.QR_SIGNING_SECRET = 'a'.repeat(64)
+  const validPayload = buildMemberQrPayload(24001)
+
+  const valid = classifyScan(validPayload)
+  assert(
+    valid.kind === 'member' && valid.memberNumber === 24001,
+    `a valid member payload should classify as that member: ${JSON.stringify(valid)}`
+  )
+  // Leading and trailing whitespace turns up from decoders that pad.
+  assert(
+    classifyScan(`  ${validPayload}  `).kind === 'member',
+    'a padded payload should still read'
+  )
+
+  // Right shape, wrong signature. Must be told apart from a random QR: the
+  // rider will insist it is their card, and it is, just a stale one.
+  const flipped =
+    validPayload.slice(0, -1) + (validPayload.endsWith('0') ? '1' : '0')
+  assert(
+    classifyScan(flipped).kind === 'tampered',
+    'a bad signature should classify as tampered, not as unknown'
+  )
+  assert(
+    classifyScan('vcdc:m:24001:deadbeefdeadbeef').kind === 'tampered',
+    'a forged signature should classify as tampered'
+  )
+
+  // Anything else at all is somebody else's QR code.
+  for (const foreign of [
+    'https://example.com',
+    'WIFI:S:somenetwork;T:WPA;P:hunter2;;',
+    '',
+    'vcdc:x:24001:deadbeefdeadbeef',
+  ]) {
+    assert(
+      classifyScan(foreign).kind === 'not-ours',
+      `${JSON.stringify(foreign)} should classify as not-ours`
+    )
+  }
+
+  const guest = classifyScan('vcdc:g:42:abcdefghijklmnop')
+  assert(
+    guest.kind === 'guest' && guest.guestNumber === '42',
+    `a guest payload should classify as a guest: ${JSON.stringify(guest)}`
+  )
+  assert(
+    formatGuestNumber('42') === 'G00042',
+    'guest numbers display padded to five digits'
+  )
+
+  // Contact gaps drive what the leader is prompted to collect, and almost
+  // the entire imported roster has both missing.
+  const complete = { ...base, email: 'a@example.com', phone: '202-555-0100' }
+  assert(memberGaps(complete).length === 0, 'a complete record has no gaps')
+  assert(
+    JSON.stringify(memberGaps({ ...complete, email: null })) ===
+      JSON.stringify(['email']),
+    'a missing email is one gap'
+  )
+  assert(
+    JSON.stringify(memberGaps({ ...complete, email: null, phone: null })) ===
+      JSON.stringify(['email', 'phone']),
+    'a sheet-imported member shows both gaps'
+  )
+  console.log('scan classification ok')
 
   console.log('ALL SMOKE TESTS PASSED')
 }
