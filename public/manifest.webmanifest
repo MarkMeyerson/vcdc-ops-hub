@@ -1,0 +1,21 @@
+{
+  "name": "VCDC Ride Sign-in",
+  "short_name": "VCDC Rides",
+  "description": "Scan member cards and check waivers at the start of a Vespa Club of Washington DC ride.",
+  "start_url": "/ride",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#e48125",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
