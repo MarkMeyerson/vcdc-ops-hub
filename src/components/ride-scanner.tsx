@@ -737,29 +737,52 @@ export function RideScanner({
     }
   }, [rideId, stop, refreshScans])
 
-  const handleWaiverSigned = useCallback(async () => {
-    if (!signingWaiver || !outcome || outcome.kind !== 'member') {
+  // After a signature lands, the screen and the phone's roster both still say
+  // the rider has no waiver. Neither can be fixed by re-scanning: the roster
+  // is a copy taken before they signed, and re-reading the card would answer
+  // from that same stale copy.
+  //
+  // So the signature is applied where the leader will actually see it. The
+  // card on screen is marked signed, and the matching roster entry is patched
+  // in place and written back to IndexedDB, so a second scan of the same
+  // rider agrees with the first and a leader who loses signal keeps the
+  // answer. The server already holds the authoritative row; the next sync
+  // overwrites all of this with it.
+  const handleWaiverSigned = useCallback(
+    async (memberNumber: number) => {
       setSigningWaiver(null)
-      return
-    }
 
-    setSigningWaiver(null)
+      const signedAt = new Date().toISOString()
 
-    // Refresh the member's waiver status from the server
-    try {
-      const raw = outcome.member.memberNumber
-        ? `vcdc:m:${outcome.member.memberNumber}`
-        : ''
-      if (raw) {
-        const refreshed = await lookupScan(raw)
-        if (refreshed.ok && refreshed.outcome.kind === 'member') {
-          setOutcome(refreshed.outcome)
+      setOutcome((current) => {
+        if (
+          !current ||
+          (current.kind !== 'member' && current.kind !== 'expired-member') ||
+          current.member.memberNumber !== memberNumber
+        ) {
+          return current
         }
+        return {
+          ...current,
+          waiver: { state: 'signed', signedAt, version: null },
+        }
+      })
+
+      const stored = await loadRoster()
+      if (!stored) return
+      const patched = {
+        ...stored,
+        entries: stored.entries.map((entry) =>
+          entry.memberNumber === memberNumber
+            ? { ...entry, waiverSignedAt: signedAt }
+            : entry
+        ),
       }
-    } catch {
-      // Keep the current outcome if refresh fails
-    }
-  }, [signingWaiver, outcome])
+      await saveRoster(patched)
+      setRoster(patched.entries)
+    },
+    []
+  )
 
   if (submitted) {
     return (
@@ -783,7 +806,7 @@ export function RideScanner({
           memberNumber={signingWaiver.memberNumber}
           firstName={signingWaiver.firstName}
           lastName={signingWaiver.lastName}
-          onSuccess={handleWaiverSigned}
+          onSuccess={() => void handleWaiverSigned(signingWaiver.memberNumber)}
         />
       )}
 

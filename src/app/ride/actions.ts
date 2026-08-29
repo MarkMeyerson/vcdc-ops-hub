@@ -505,6 +505,7 @@ export type WaiverSignResult =
 const scanWaiverSchema = z.object({
   memberNumber: z.coerce.number().int().positive(),
   signatureName: z.string().trim().min(1, 'Enter your name to sign'),
+  agreed: z.string().nullable(),
 })
 
 // Quick waiver signature during check-in. The member is already known (we
@@ -528,12 +529,24 @@ export async function signMemberWaiverAtScan(
   const parsed = scanWaiverSchema.safeParse({
     memberNumber: formData.get('memberNumber'),
     signatureName: formData.get('signatureName') ?? '',
+    agreed: formData.get('agreed'),
   })
 
   if (!parsed.success) {
     return {
       ok: false,
       error: parsed.error.issues[0]?.message ?? 'Check the form',
+    }
+  }
+
+  // The checkbox is `required` in the markup, which stops an honest mistake
+  // and nothing else. A waiver recorded without the rider actually accepting
+  // it is worse than no record at all, so the consent is checked here too,
+  // exactly as the public waiver form does.
+  if (!parsed.data.agreed) {
+    return {
+      ok: false,
+      error: 'Tick the box to confirm you have read and accept the waiver.',
     }
   }
 

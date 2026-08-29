@@ -949,6 +949,45 @@ async function main() {
   )
   console.log('starter waiver ok')
 
+  // ---------- Signing a waiver at sign-in ----------
+  //
+  // The scanner marks a rider as signed without going back to the server,
+  // because the phone's roster is a copy taken before they signed and
+  // re-reading the card would answer from that same stale copy. These guard
+  // the two things that made the first attempt at it silently do nothing.
+
+  // A member number on its own is not a card. An earlier version of the
+  // refresh rebuilt one this way and fed it back through classifyScan, which
+  // correctly read it as a forgery, so the rider stayed red on screen after
+  // signing. Anything reconstructing a payload must include the signature.
+  assert(
+    classifyScan('vcdc:m:24001').kind === 'tampered',
+    'a member number with no signature is not a valid card and must not resolve to a member'
+  )
+  assert(
+    classifyScan(buildMemberQrPayload(24001)).kind === 'member',
+    'a properly signed card still resolves to a member'
+  )
+
+  // Patching the roster entry is what makes a second scan of the same rider
+  // agree with the first, with or without signal.
+  const unsignedEntry = offlineRoster.find((e) => e.memberNumber === 24001)
+  assert(
+    unsignedEntry !== undefined && unsignedEntry.waiverSignedAt === null,
+    'the fixture member should start with no waiver on file'
+  )
+  const signedEntry = { ...unsignedEntry!, waiverSignedAt: '2026-08-29T12:00:00.000Z' }
+  const afterSigning = resolveOffline(
+    buildMemberQrPayload(24001),
+    [signedEntry],
+    offlineToday
+  )
+  assert(
+    afterSigning.kind === 'member' && afterSigning.waiver.state === 'signed',
+    'once the roster entry carries a signature date, the next scan reads as signed'
+  )
+  console.log('waiver signing at sign-in ok')
+
 
   console.log('ALL SMOKE TESTS PASSED')
 }

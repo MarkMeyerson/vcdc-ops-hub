@@ -2,70 +2,59 @@
 
 import * as React from 'react'
 
+// A modal, kept deliberately small. The one in this app is opened by a ride
+// leader standing in a car park and handed to a rider, so it does two things
+// and no more: it traps the page behind it, and it closes on the two gestures
+// people try without being told (Escape, and a tap outside the panel).
+
 export function Dialog({
   open,
+  onOpenChange,
   children,
 }: {
   open: boolean
+  onOpenChange: (open: boolean) => void
   children: React.ReactNode
 }) {
   React.useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
+    if (!open) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onOpenChange(false)
     }
+
+    document.addEventListener('keydown', onKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
     return () => {
-      document.body.style.overflow = 'auto'
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousOverflow
     }
-  }, [open])
+  }, [open, onOpenChange])
 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div
+      // The backdrop closes; the panel inside stops the click reaching it.
+      // Done with a click handler on the overlay rather than a document-level
+      // listener, so the tap that opened the dialog cannot also close it.
+      onClick={() => onOpenChange(false)}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
       {children}
     </div>
   )
 }
 
-export function DialogContent({
-  children,
-  onEscapeKeyDown,
-  onOpenChange,
-}: {
-  children: React.ReactNode
-  onEscapeKeyDown?: () => void
-  onOpenChange?: (open: boolean) => void
-}) {
-  const contentRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onEscapeKeyDown?.()
-        onOpenChange?.(false)
-      }
-    }
-
-    const handleBackdropClick = (e: MouseEvent) => {
-      if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
-        onOpenChange?.(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleEscape)
-    document.addEventListener('click', handleBackdropClick)
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.removeEventListener('click', handleBackdropClick)
-    }
-  }, [onEscapeKeyDown, onOpenChange])
-
+export function DialogContent({ children }: { children: React.ReactNode }) {
   return (
     <div
-      ref={contentRef}
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => event.stopPropagation()}
       className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-lg"
-      onClick={(e) => e.stopPropagation()}
     >
       {children}
     </div>
