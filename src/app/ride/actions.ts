@@ -13,6 +13,7 @@ import {
 import { requireRideAccess } from '@/lib/auth'
 import { rideForActor, buildRoster } from '@/lib/ride/rides'
 import { acceptsScans, todayIso } from '@/lib/ride/status'
+import { currentWaiver } from '@/lib/waiver/queries'
 import {
   classifyScan,
   memberGaps,
@@ -493,4 +494,74 @@ export async function saveContact(
   }
 
   return { error: null, saved: true }
+}
+
+// ---------- Waiver signing at scan ----------
+
+export type WaiverSignResult =
+  | { ok: true; memberNumber: number; firstName: string }
+  | { ok: false; error: string }
+
+const scanWaiverSchema = z.object({
+  memberNumber: z.coerce.number().int().positive(),
+  signatureName: z.string().trim().min(1, 'Enter your name to sign'),
+})
+
+// Quick waiver signature during check-in. The member is already known (we
+// have their card), so this just captures confirmation and a name. Unlike the
+// full waiver form, no email/phone/emergency contact collection: the leader
+// can follow up offline if needed.
+export async function signMemberWaiverAtScan(
+  _prev: WaiverSignResult,
+  formData: FormData
+): Promise<WaiverSignResult> {
+  await requireRideAccess()
+
+  const waiver = await currentWaiver()
+  if (!waiver) {
+    return {
+      ok: false,
+      error: 'The club has not published its waiver text yet.',
+    }
+  }
+
+  const parsed = scanWaiverSchema.safeParse({
+    memberNumber: formData.get('memberNumber'),
+    signatureName: formData.get('signatureName') ?? '',
+  })
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Check the form',
+    }
+  }
+
+  const [member] = await db
+    .select({ id: members.id, firstName: members.firstName })
+    .from(members)
+    .where(eq(members.memberNumber, parsed.data.memberNumber))
+    .limit(1)
+
+  if (!member) {
+    return {
+      ok: false,
+      error: 'Member not found.',
+    }
+  }
+
+  await db
+    .update(members)
+    .set({
+      waiverSignedAt: new Date(),
+      waiverVersion: waiver.version,
+      updatedAt: new Date(),
+    })
+    .where(eq(members.id, member.id))
+
+  return {
+    ok: true,
+    memberNumber: parsed.data.memberNumber,
+    firstName: member.firstName,
+  }
 }
