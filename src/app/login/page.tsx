@@ -38,7 +38,9 @@ function LoginForm() {
         setError('Incorrect email or password.')
         return
       }
-      window.location.href = '/admin'
+      // Where they belong is decided by the role on the account, which the
+      // browser does not get to pick. / redirects on the server.
+      window.location.href = '/'
       return
     }
 
@@ -49,7 +51,7 @@ function LoginForm() {
         shouldCreateUser: false,
         // Used by the default Supabase email template (ConfirmationURL).
         // Must be in the Supabase auth redirect allow-list.
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/admin`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
       },
     })
 

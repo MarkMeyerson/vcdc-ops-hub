@@ -10,7 +10,13 @@ import { createServerClient } from '@supabase/ssr'
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const next = url.searchParams.get('next') ?? '/admin'
+  // Only a same-site path. new URL(next, origin) would happily follow an
+  // absolute URL somebody appended to a sign-in link, which is an open
+  // redirect off the back of an authentication flow.
+  const requested = url.searchParams.get('next') ?? '/'
+  const next = requested.startsWith('/') && !requested.startsWith('//')
+    ? requested
+    : '/'
 
   const response = NextResponse.redirect(new URL(next, url.origin))
 

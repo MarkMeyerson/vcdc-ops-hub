@@ -29,3 +29,14 @@ export function appOrigin(): string | null {
   if (!url) return null
   return url.replace(/\/+$/, '')
 }
+
+// Where a rider is sent to sign. NEXT_PUBLIC_WAIVER_URL wins so the club can
+// point a short domain at it later without a deploy; otherwise it is this
+// app's own /waiver page. Never hardcode a domain: the club is on
+// vespaclubofdc.org and there is no vcdc.org.
+export function waiverUrl(): string | null {
+  const explicit = envVar('NEXT_PUBLIC_WAIVER_URL')
+  if (explicit) return explicit.replace(/\/+$/, '')
+  const origin = appOrigin()
+  return origin ? `${origin}/waiver` : null
+}

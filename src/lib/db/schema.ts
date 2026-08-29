@@ -4,6 +4,7 @@ import {
   index,
   inet,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -37,6 +38,10 @@ export const members = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Null until they sign. The imported roster has signed nothing in this
+    // system, and a leader must see that rather than a green check.
+    waiverSignedAt: timestamp('waiver_signed_at', { withTimezone: true }),
+    waiverVersion: integer('waiver_version'),
   },
   (table) => [
     index('members_member_number_idx').on(table.memberNumber),
@@ -78,7 +83,13 @@ export const guestWaivers = pgTable(
     phone: text('phone'),
     emergencyContactName: text('emergency_contact_name'),
     emergencyContactPhone: text('emergency_contact_phone'),
-    signaturePath: text('signature_path').notNull(),
+    // Storage path for a rendered PNG, when there is one. The stroke
+    // geometry below is what is always written; see migration 0004.
+    signaturePath: text('signature_path'),
+    signatureStrokes: jsonb('signature_strokes'),
+    signatureName: text('signature_name'),
+    guardianName: text('guardian_name'),
+    photoConsent: boolean('photo_consent').notNull().default(true),
     waiverTextVersion: integer('waiver_text_version')
       .notNull()
       .references(() => waiverVersions.version),
@@ -130,6 +141,11 @@ export const rideAttendance = pgTable(
     guestWaiverId: uuid('guest_waiver_id').references(() => guestWaivers.id),
     scannedAt: timestamp('scanned_at', { withTimezone: true }).notNull(),
     scannedOffline: boolean('scanned_offline').notNull().default(false),
+    // A scan the server could not resolve to a person. Kept rather than
+    // dropped, so submitting a ride can never lose somebody the leader
+    // stood in front of.
+    rawCode: text('raw_code'),
+    unresolvedReason: text('unresolved_reason'),
   },
   (table) => [
     index('ride_attendance_ride_id_idx').on(table.rideId),
@@ -151,3 +167,8 @@ export const appSettings = pgTable('app_settings', {
 
 export type Member = typeof members.$inferSelect
 export type NewMember = typeof members.$inferInsert
+export type RideLeader = typeof rideLeaders.$inferSelect
+export type Ride = typeof rides.$inferSelect
+export type NewRide = typeof rides.$inferInsert
+export type GuestWaiver = typeof guestWaivers.$inferSelect
+export type WaiverVersion = typeof waiverVersions.$inferSelect

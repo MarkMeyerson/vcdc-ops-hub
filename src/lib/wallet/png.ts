@@ -36,6 +36,35 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([length, body, crc])
 }
 
+// Encodes an RGB bitmap. pixels is width * height * 3 bytes, row major.
+export function rgbPng(
+  width: number,
+  height: number,
+  pixels: Buffer
+): Buffer {
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // color type: truecolor RGB
+  // compression, filter, interlace all zero
+
+  // Each scanline is a filter byte followed by RGB triples.
+  const rows: Buffer[] = []
+  for (let y = 0; y < height; y++) {
+    const row = Buffer.alloc(1 + width * 3)
+    pixels.copy(row, 1, y * width * 3, (y + 1) * width * 3)
+    rows.push(row)
+  }
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
 export function solidPng(
   width: number,
   height: number,

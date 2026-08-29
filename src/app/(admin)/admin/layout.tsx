@@ -25,6 +25,15 @@ export default async function AdminLayout({
               <Link href="/admin/members/links" className="hover:text-white">
                 Card links
               </Link>
+              <Link href="/admin/leaders" className="hover:text-white">
+                Leaders
+              </Link>
+              <Link href="/admin/waiver" className="hover:text-white">
+                Waiver
+              </Link>
+              <Link href="/ride" className="hover:text-white">
+                Rides
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm text-white/70">

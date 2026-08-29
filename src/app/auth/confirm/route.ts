@@ -5,12 +5,18 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 // Magic-link confirm route. Uses verifyOtp(token_hash), no PKCE
 // code-verifier, so login links work from any browser or device.
 // Requires the Supabase Magic Link email template to point at:
-//   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/admin
+//   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const token_hash = url.searchParams.get('token_hash')
   const type = url.searchParams.get('type') as EmailOtpType | null
-  const next = url.searchParams.get('next') ?? '/admin'
+  // Only a same-site path. new URL(next, origin) would happily follow an
+  // absolute URL somebody appended to a sign-in link, which is an open
+  // redirect off the back of an authentication flow.
+  const requested = url.searchParams.get('next') ?? '/'
+  const next = requested.startsWith('/') && !requested.startsWith('//')
+    ? requested
+    : '/'
 
   const response = NextResponse.redirect(new URL(next, url.origin))
 

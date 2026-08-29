@@ -42,10 +42,21 @@ import { buildTemplate, planImport } from '../src/lib/member-import'
 import { isUuid } from '../src/lib/uuid'
 import { envVar } from '../src/lib/env'
 import {
+  attendanceKey,
   classifyScan,
   formatGuestNumber,
   memberGaps,
+  resolveOffline,
+  type RosterEntry,
 } from '../src/lib/scan/resolve'
+import { parseScan, signaturesMatch } from '../src/lib/scan/parse'
+import { memberQrSignature } from '../src/lib/qr/payload'
+import {
+  renderWaiverMarkdown,
+  waiverTitle,
+} from '../src/lib/waiver/markdown'
+import { STARTER_WAIVER_MARKDOWN } from '../src/lib/waiver/starter-text'
+import { acceptsScans, canMoveTo, todayIso } from '../src/lib/ride/status'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`SMOKE FAIL: ${message}`)
@@ -129,6 +140,8 @@ async function main() {
     expiresAt: '2027-07-16',
     createdAt: new Date(),
     updatedAt: new Date(),
+    waiverSignedAt: null,
+    waiverVersion: null,
   }
 
   const pkpass = await buildApplePass(member)
@@ -653,6 +666,255 @@ async function main() {
     'a sheet-imported member shows both gaps'
   )
   console.log('scan classification ok')
+
+
+  // 16. Offline scan resolution. This is the path a leader actually uses in
+  //     a parking lot with no bars, and it has to reach the same verdict as
+  //     the server without ever seeing the signing secret. It compares the
+  //     signature read off the card against the one the server precomputed.
+  process.env.QR_SIGNING_SECRET = 'a'.repeat(64)
+
+  const rosterEntry = (
+    n: number,
+    overrides: Partial<RosterEntry> = {}
+  ): RosterEntry => ({
+    memberNumber: n,
+    firstName: 'Roster',
+    lastName: `Member${n}`,
+    membershipTier: 'regular',
+    expiresAt: '2027-12-31',
+    waiverSignedAt: null,
+    waiverVersion: null,
+    needsContact: false,
+    signature: memberQrSignature(n),
+    ...overrides,
+  })
+
+  const offlineRoster: RosterEntry[] = [
+    rosterEntry(24001),
+    rosterEntry(24002, { expiresAt: '2026-01-31' }),
+    rosterEntry(24003, {
+      waiverSignedAt: '2026-08-01T12:00:00.000Z',
+      waiverVersion: 1,
+    }),
+    rosterEntry(24004, { needsContact: true }),
+  ]
+  const offlineToday = '2026-08-29'
+
+  const offlineMember = resolveOffline(
+    buildMemberQrPayload(24001),
+    offlineRoster,
+    offlineToday
+  )
+  assert(
+    offlineMember.kind === 'member' &&
+      offlineMember.member.memberNumber === 24001,
+    `a current member should resolve offline: ${JSON.stringify(offlineMember)}`
+  )
+  assert(
+    offlineMember.kind === 'member' && offlineMember.waiver.state === 'missing',
+    'a member who has not signed should read as missing a waiver, not as unknown'
+  )
+
+  const offlineExpired = resolveOffline(
+    buildMemberQrPayload(24002),
+    offlineRoster,
+    offlineToday
+  )
+  assert(
+    offlineExpired.kind === 'expired-member',
+    'a lapsed membership must be visible with no signal, or the check is not a check'
+  )
+
+  const offlineSigned = resolveOffline(
+    buildMemberQrPayload(24003),
+    offlineRoster,
+    offlineToday
+  )
+  assert(
+    offlineSigned.kind === 'member' && offlineSigned.waiver.state === 'signed',
+    'a signed waiver should be readable offline from the synced roster'
+  )
+
+  const offlineGaps = resolveOffline(
+    buildMemberQrPayload(24004),
+    offlineRoster,
+    offlineToday
+  )
+  assert(
+    offlineGaps.kind === 'member' && offlineGaps.gaps.length > 0,
+    'needsContact should still prompt the leader with no signal'
+  )
+
+  // A card whose signature does not match the precomputed one. This is the
+  // check that makes the offline path worth anything: without it the phone
+  // would accept a hand-typed vcdc:m: string for any number on the roster.
+  const forged = `vcdc:m:24001:${'0'.repeat(16)}`
+  assert(
+    resolveOffline(forged, offlineRoster, offlineToday).kind === 'tampered',
+    'a forged signature must be rejected offline, not just online'
+  )
+
+  // Somebody who joined since the roster synced.
+  assert(
+    resolveOffline(buildMemberQrPayload(29999), offlineRoster, offlineToday)
+      .kind === 'unknown-member',
+    'a member missing from the synced roster should read as unknown'
+  )
+
+  // Guest codes are signed by the database, not by an HMAC, so a phone with
+  // no signal genuinely cannot check one. Saying so beats guessing.
+  const offlineGuest = resolveOffline(
+    'vcdc:g:42:abcdefghijklmnop',
+    offlineRoster,
+    offlineToday
+  )
+  assert(
+    offlineGuest.kind === 'guest' && offlineGuest.status === 'unverified',
+    'an offline guest code should be accepted as unverified, never as valid'
+  )
+
+  assert(
+    resolveOffline('https://example.com', offlineRoster, offlineToday).kind ===
+      'not-ours',
+    'a stranger QR is still a stranger QR offline'
+  )
+
+  // The parser must not need the secret, or none of the above could run in a
+  // browser.
+  const parsedMember = parseScan(buildMemberQrPayload(24001))
+  assert(
+    parsedMember.kind === 'member' &&
+      parsedMember.signature === memberQrSignature(24001),
+    'parseScan should return the signature it read without verifying it'
+  )
+  assert(signaturesMatch('abc', 'abc'), 'identical signatures should match')
+  assert(!signaturesMatch('abc', 'abd'), 'different signatures should not match')
+  assert(!signaturesMatch('abc', 'abcd'), 'different lengths should not match')
+  console.log('offline scan resolution ok')
+
+
+  // 17. Attendance keys. One rider scanned twice is one row; two riders are
+  //     never one row. A collision here double-books or drops somebody.
+  const keyed = resolveOffline(
+    buildMemberQrPayload(24001),
+    offlineRoster,
+    offlineToday
+  )
+  assert(
+    attendanceKey(keyed, '') === 'm:24001',
+    'a member keys on their number, so a rescan is the same row'
+  )
+  assert(
+    attendanceKey(
+      resolveOffline(buildMemberQrPayload(24002), offlineRoster, offlineToday),
+      ''
+    ) === 'm:24002',
+    'an expired member still keys on their number'
+  )
+  assert(
+    attendanceKey(offlineGuest, '') === 'g:42',
+    'a guest keys on their guest number'
+  )
+  assert(
+    attendanceKey({ kind: 'not-ours', raw: 'x' }, 'x') === null,
+    'a stranger QR puts nobody on a ride'
+  )
+  assert(
+    attendanceKey({ kind: 'tampered', raw: 'vcdc:m:1:z' }, 'vcdc:m:1:z') !==
+      attendanceKey({ kind: 'tampered', raw: 'vcdc:m:2:z' }, 'vcdc:m:2:z'),
+    'two different unreadable cards must not collapse into one row'
+  )
+  console.log('attendance keys ok')
+
+
+  // 18. Ride status. A submitted roster has been reported; letting it reopen
+  //     would let the report change underneath itself.
+  assert(canMoveTo('planned', 'active'), 'a planned ride should be openable')
+  assert(canMoveTo('active', 'submitted'), 'an open ride should be submittable')
+  assert(!canMoveTo('submitted', 'active'), 'a submitted ride must not reopen')
+  assert(!canMoveTo('planned', 'submitted'), 'a ride cannot skip sign-in')
+  assert(
+    acceptsScans('planned') && acceptsScans('active'),
+    'an early rider must be scannable before the leader taps anything'
+  )
+  assert(!acceptsScans('submitted'), 'a submitted ride takes no more scans')
+  assert(
+    /^\d{4}-\d{2}-\d{2}$/.test(todayIso(new Date('2026-08-29T23:30:00Z'))),
+    'todayIso should produce a plain ISO date'
+  )
+  console.log('ride status ok')
+
+
+  // 19. Waiver text rendering. This is admin-pasted text rendered as HTML on
+  //     a public page, so the only thing that really matters is that nothing
+  //     pasted into it can become markup.
+  const rendered = renderWaiverMarkdown(
+    '# Title\n\nA **bold** claim.\n\n- one\n- two\n'
+  )
+  assert(rendered.includes('<h1>Title</h1>'), 'headings should render')
+  assert(
+    rendered.includes('<strong>bold</strong>'),
+    'bold should render'
+  )
+  assert(
+    rendered.includes('<li>one</li>') && rendered.includes('<li>two</li>'),
+    'bullets should render'
+  )
+
+  const hostile = renderWaiverMarkdown(
+    '<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n[a](javascript:alert(1))'
+  )
+  assert(!hostile.includes('<script'), 'a script tag must never survive')
+  assert(!hostile.includes('<img'), 'an img tag must never survive')
+  assert(
+    !hostile.includes('href='),
+    'no link is ever emitted, so no javascript: URL can be'
+  )
+  assert(
+    hostile.includes('&lt;script&gt;'),
+    'markup should render as the literal characters it is'
+  )
+
+  assert(
+    waiverTitle(STARTER_WAIVER_MARKDOWN).includes('Vespa Club'),
+    'the waiver title should come from its first heading'
+  )
+  assert(
+    waiverTitle('no heading here') === 'Ride waiver',
+    'text with no heading should still produce a title'
+  )
+  console.log('waiver rendering ok')
+
+
+  // 20. Starter waiver text. It exists so testing is not blocked on legal
+  //     review, which makes it exactly the sort of thing that quietly ships
+  //     to a real ride. It says what it is, in its own body.
+  assert(
+    STARTER_WAIVER_MARKDOWN.includes('**Interim text.**'),
+    'the starter waiver must announce that it is a placeholder'
+  )
+  assert(
+    STARTER_WAIVER_MARKDOWN.length > 2000,
+    'the starter waiver is suspiciously short'
+  )
+  for (const clause of [
+    'Assumption of Risk',
+    'Release of claims',
+    'Emergency',
+    'Electronic signature',
+  ]) {
+    assert(
+      STARTER_WAIVER_MARKDOWN.toLowerCase().includes(clause.toLowerCase()),
+      `the starter waiver is missing its ${clause} section`
+    )
+  }
+  assert(
+    !STARTER_WAIVER_MARKDOWN.includes('—'),
+    'no em dashes anywhere, including in waiver text'
+  )
+  console.log('starter waiver ok')
+
 
   console.log('ALL SMOKE TESTS PASSED')
 }
