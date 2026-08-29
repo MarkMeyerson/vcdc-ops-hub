@@ -57,8 +57,15 @@ function LoginForm() {
 
     if (error) {
       setStatus('idle')
+      // The overwhelmingly common cause is an address that has no account,
+      // because shouldCreateUser is false and nobody can sign themselves up.
+      // The old wording ("check the address") sent people hunting for a
+      // typo in an address that was spelled perfectly and simply was not a
+      // user, which is a genuinely hard dead end to get out of. This says
+      // what to actually do without confirming whether any particular
+      // address exists.
       setError(
-        'Could not send the sign-in link. Check the address, or contact the club if the problem persists.'
+        'No sign-in link was sent. Accounts here are created by an admin, so the address has to be one that was already set up. If you are sure it was, the email service may be having trouble.'
       )
       return
     }
