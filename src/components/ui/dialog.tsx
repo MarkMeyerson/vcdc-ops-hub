@@ -4,11 +4,9 @@ import * as React from 'react'
 
 export function Dialog({
   open,
-  onOpenChange,
   children,
 }: {
   open: boolean
-  onOpenChange?: (open: boolean) => void
   children: React.ReactNode
 }) {
   React.useEffect(() => {
