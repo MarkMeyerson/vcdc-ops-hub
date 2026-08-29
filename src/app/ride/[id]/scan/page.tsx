@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
+import QRCode from 'qrcode'
 import { requireRideAccess } from '@/lib/auth'
 import { rideForActor } from '@/lib/ride/rides'
 import { acceptsScans } from '@/lib/ride/status'
@@ -28,6 +29,19 @@ export default async function RideScanPage({
   const ride = await rideForActor(id, actor)
   if (!ride) notFound()
   if (!acceptsScans(ride.status)) redirect(`/ride/${ride.id}`)
+
+  // A leader holds their own phone up and a stranger scans it. Rendered here
+  // rather than on the device because the URL is the same for every rider,
+  // and because it then works with no signal: the image travels with the
+  // page the leader already has open.
+  const waiver = waiverUrl()
+  const waiverQrDataUrl = waiver
+    ? await QRCode.toDataURL(waiver, {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 512,
+      })
+    : null
 
   return (
     <div className="space-y-4">
@@ -59,7 +73,8 @@ export default async function RideScanPage({
       <RideScanner
         rideId={ride.id}
         rideStatus={ride.status}
-        waiverUrl={waiverUrl()}
+        waiverUrl={waiver}
+        waiverQrDataUrl={waiverQrDataUrl}
       />
     </div>
   )

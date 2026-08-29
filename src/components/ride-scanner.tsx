@@ -111,6 +111,17 @@ function WaiverLine({ waiver }: { waiver: WaiverStatus }) {
       </p>
     )
   }
+  // The club's rule: membership carries the cover, and only guests and
+  // non-members go through the waiver flow. Every one of the 95 imported
+  // members is in this state, so rendering it as a problem would paint the
+  // whole roster red and train leaders to ignore the line that matters.
+  if (waiver.state === 'covered') {
+    return (
+      <p className="mt-2 text-sm font-medium text-vcdc-green">
+        Covered by membership.
+      </p>
+    )
+  }
   if (waiver.state === 'unknown') {
     return (
       <p className="mt-2 text-sm font-medium text-vcdc-cog">
@@ -368,10 +379,14 @@ export function RideScanner({
   rideId,
   rideStatus,
   waiverUrl,
+  waiverQrDataUrl,
 }: {
   rideId: string
   rideStatus: 'planned' | 'active' | 'submitted'
   waiverUrl: string | null
+  // Rendered on the server: the waiver URL does not change between riders,
+  // so there is no reason to ship a QR encoder to the phone for it.
+  waiverQrDataUrl: string | null
 }) {
   const [outcome, setOutcome] = useState<ScanOutcome | null>(null)
   const [duplicate, setDuplicate] = useState(false)
@@ -387,6 +402,7 @@ export function RideScanner({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(rideStatus === 'submitted')
   const [memoryOnly, setMemoryOnly] = useState(false)
+  const [showingWaiver, setShowingWaiver] = useState(false)
 
   // Read inside the scan handler without making it a dependency, so the
   // camera loop is never torn down and restarted by a state change.
@@ -763,6 +779,44 @@ export function RideScanner({
           only and closing this tab loses them. Open the app in a normal
           window before the ride starts.
         </p>
+      )}
+
+      {waiverQrDataUrl && (
+        <div className="rounded-lg border border-vcdc-cog/30 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Somebody with no card?</p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowingWaiver((open) => !open)}
+            >
+              {showingWaiver ? 'Hide' : 'Show waiver code'}
+            </Button>
+          </div>
+          {showingWaiver && (
+            <div className="mt-3 text-center">
+              {/* Turn the phone around and let them scan it. Works with no
+                  signal on the leader's phone, since the image is already
+                  here; the rider needs their own connection to open it.
+                  eslint-disable-next-line @next/next/no-img-element */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={waiverQrDataUrl}
+                alt="Scan to sign the VCDC ride waiver"
+                className="mx-auto w-56 max-w-full rounded-md bg-white p-2"
+              />
+              <p className="mt-2 text-xs text-vcdc-cog">
+                Hold this up. They scan it, sign on their own phone, and show
+                you the code it gives them.
+              </p>
+              {waiverUrl && (
+                <p className="mt-1 break-all text-xs text-vcdc-cog">
+                  {waiverUrl}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="overflow-hidden rounded-lg border border-vcdc-cog/30 bg-black">

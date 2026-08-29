@@ -149,9 +149,24 @@ underneath itself is not a record.
 waiver status, plus a prompt to collect a missing email or phone while the
 rider is standing there. An expired member and a rider with no waiver are
 both shown rather than blocked, because turning somebody away is a
-conversation, not an error state. An unrecognized code offers a button that
-opens the leader's own SMS composer with the waiver link in it; there is no
-texting integration and there is not meant to be.
+conversation, not an error state.
+
+**Waiver status follows the club's rule**: membership itself carries the
+cover, and only guests and non-members go through the waiver flow. A current
+member who has signed nothing reads as **covered by membership**, not as a
+problem. That distinction matters because all 95 imported members are in
+that state, and rendering it red would paint the whole roster as a problem
+and train leaders to ignore the line. A member whose membership has lapsed is
+riding as a guest, so the cover lapses with it and they read as needing a
+waiver like anyone else.
+
+**For a rider with no card at all**, the sign-in screen has a Show waiver
+code button. The leader turns their phone around, the rider scans it, signs
+on their own phone, and shows back the `G00001` code they get. The QR is
+rendered on the server with the page, so the leader's phone needs no signal
+to display it. An unrecognized code also offers a button that opens the
+leader's own SMS composer with the waiver link in it; there is no texting
+integration and there is not meant to be.
 
 ### Working with no signal
 
@@ -200,7 +215,10 @@ emergency contact, a drawn signature, and a typed name.
   is never publicly readable.
 - **A member** who ticks the member box and gives a member number matching
   the surname gets the waiver stamped on their membership record instead.
-  Their usual member card is then what the leader scans.
+  Their usual member card is then what the leader scans. Members do not need
+  to do this, since membership already covers them; the path exists so the
+  club can collect signatures if it ever decides otherwise, and so a member
+  who follows a waiver link does not end up with a stray guest record.
 
 Publishing at `/admin/waiver` inserts a new version and never rewrites an
 old one. Every signature points at the version number that was on screen when

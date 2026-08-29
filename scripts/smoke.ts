@@ -46,6 +46,7 @@ import {
   classifyScan,
   formatGuestNumber,
   memberGaps,
+  memberWaiverStatus,
   resolveOffline,
   type RosterEntry,
 } from '../src/lib/scan/resolve'
@@ -711,9 +712,14 @@ async function main() {
       offlineMember.member.memberNumber === 24001,
     `a current member should resolve offline: ${JSON.stringify(offlineMember)}`
   )
+  // The club's rule (recorded on the infrastructure page in Notion):
+  // membership itself carries the cover, and only guests and non-members go
+  // through the waiver flow. All 95 imported members have signed nothing in
+  // this system, so getting this wrong paints the entire roster red at
+  // sign-in and trains leaders to ignore the waiver line entirely.
   assert(
-    offlineMember.kind === 'member' && offlineMember.waiver.state === 'missing',
-    'a member who has not signed should read as missing a waiver, not as unknown'
+    offlineMember.kind === 'member' && offlineMember.waiver.state === 'covered',
+    `a current member who has not signed is covered by membership: ${JSON.stringify(offlineMember)}`
   )
 
   const offlineExpired = resolveOffline(
@@ -725,6 +731,13 @@ async function main() {
     offlineExpired.kind === 'expired-member',
     'a lapsed membership must be visible with no signal, or the check is not a check'
   )
+  // A lapsed member is riding as a guest, and a guest needs a waiver. The
+  // cover comes from the membership, so it lapses with it.
+  assert(
+    offlineExpired.kind === 'expired-member' &&
+      offlineExpired.waiver.state === 'missing',
+    'an expired member is no longer covered by membership'
+  )
 
   const offlineSigned = resolveOffline(
     buildMemberQrPayload(24003),
@@ -734,6 +747,27 @@ async function main() {
   assert(
     offlineSigned.kind === 'member' && offlineSigned.waiver.state === 'signed',
     'a signed waiver should be readable offline from the synced roster'
+  )
+
+  // The same rule, applied to a database row rather than a roster entry.
+  // Two code paths reach the same verdict, so both are pinned.
+  const unsigned = { waiverSignedAt: null, waiverVersion: null }
+  const signedRow = {
+    waiverSignedAt: new Date('2026-08-01T12:00:00Z'),
+    waiverVersion: 1,
+  }
+  assert(
+    memberWaiverStatus(unsigned, false).state === 'covered',
+    'online: a current member who has not signed is covered'
+  )
+  assert(
+    memberWaiverStatus(unsigned, true).state === 'missing',
+    'online: an expired member who has not signed needs a waiver'
+  )
+  assert(
+    memberWaiverStatus(signedRow, false).state === 'signed' &&
+      memberWaiverStatus(signedRow, true).state === 'signed',
+    'a real signature is reported whatever the membership is doing'
   )
 
   const offlineGaps = resolveOffline(

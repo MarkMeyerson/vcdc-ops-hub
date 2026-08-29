@@ -106,12 +106,13 @@ export async function lookupScan(raw: string): Promise<ScanResult> {
     }
   }
 
-  const waiver = memberWaiverStatus(member)
+  const expired = member.expiresAt < todayIso()
+  const waiver = memberWaiverStatus(member, expired)
 
   // A signature can be valid while the membership is not. The leader still
   // sees who it is, because turning somebody away is a conversation, not an
   // error state.
-  if (member.expiresAt < todayIso()) {
+  if (expired) {
     return {
       ok: true,
       outcome: {

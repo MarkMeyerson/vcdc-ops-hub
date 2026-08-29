@@ -25,6 +25,16 @@ export type ScannedMember = {
 
 export type WaiverStatus =
   | { state: 'signed'; signedAt: string; version: number | null }
+  // A current member who has not signed anything in this system. The club's
+  // rule is that membership itself carries the cover and only guests and
+  // non-members need the waiver flow, so this is a normal state and not a
+  // problem to wave at a leader. It matters that it is its own state rather
+  // than being folded into 'signed': all 95 imported members are in it, and
+  // showing them a green "waiver signed" would be a claim the database
+  // cannot support.
+  | { state: 'covered' }
+  // Nothing on file and nothing covering them: a guest, or a member whose
+  // membership has lapsed and who is therefore riding as one.
   | { state: 'missing' }
   // Offline, for a guest code. The roster carries member waiver status, but
   // guest waivers are signed after the roster syncs, so a guest code seen
@@ -98,10 +108,16 @@ export function toScannedMember(member: Member): ScannedMember {
   }
 }
 
+// Whether a member needs a waiver depends on whether they are still a
+// member. A current one is covered by the membership itself; a lapsed one is
+// riding as a guest and needs the same waiver a stranger does.
 export function memberWaiverStatus(
-  member: Pick<Member, 'waiverSignedAt' | 'waiverVersion'>
+  member: Pick<Member, 'waiverSignedAt' | 'waiverVersion'>,
+  expired: boolean
 ): WaiverStatus {
-  if (!member.waiverSignedAt) return { state: 'missing' }
+  if (!member.waiverSignedAt) {
+    return expired ? { state: 'missing' } : { state: 'covered' }
+  }
   return {
     state: 'signed',
     signedAt: member.waiverSignedAt.toISOString(),
@@ -212,15 +228,18 @@ export function resolveOffline(
     expiresAt: entry.expiresAt,
   }
 
+  const expired = entry.expiresAt < today
   const waiver: WaiverStatus = entry.waiverSignedAt
     ? {
         state: 'signed',
         signedAt: entry.waiverSignedAt,
         version: entry.waiverVersion,
       }
-    : { state: 'missing' }
+    : expired
+      ? { state: 'missing' }
+      : { state: 'covered' }
 
-  if (entry.expiresAt < today) {
+  if (expired) {
     return { kind: 'expired-member', member, waiver }
   }
 
