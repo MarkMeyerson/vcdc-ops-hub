@@ -260,7 +260,7 @@ function Result({
             {displayDate(outcome.member.expiresAt)}
           </p>
           <WaiverLine waiver={outcome.waiver} />
-          {outcome.waiver.state === 'missing' && (
+          {outcome.waiver.state !== 'signed' && (
             <div className="mt-3 flex gap-2">
               {onWaiverSign && (
                 <button
