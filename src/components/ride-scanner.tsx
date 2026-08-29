@@ -43,6 +43,7 @@ import { displayDate, tierLabels } from '@/lib/display'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ScanWaiverModal } from '@/components/scan-waiver-modal'
 
 // Ride sign-in scanner. Phone-first: the leader is standing in a parking lot
 // holding this in one hand.
@@ -217,11 +218,17 @@ function Result({
   duplicate,
   waiverUrl,
   onCollected,
+  onWaiverSign,
 }: {
   outcome: ScanOutcome
   duplicate: boolean
   waiverUrl: string | null
   onCollected: () => void
+  onWaiverSign?: (member: {
+    memberNumber: number
+    firstName: string
+    lastName: string
+  }) => void
 }) {
   const [collecting, setCollecting] = useState(false)
   const t = toneFor(outcome.kind)
@@ -254,7 +261,24 @@ function Result({
           </p>
           <WaiverLine waiver={outcome.waiver} />
           {outcome.waiver.state === 'missing' && (
-            <TextWaiverButton waiverUrl={waiverUrl} />
+            <div className="mt-3 flex gap-2">
+              {onWaiverSign && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onWaiverSign({
+                      memberNumber: outcome.member.memberNumber,
+                      firstName: outcome.member.firstName,
+                      lastName: outcome.member.lastName,
+                    })
+                  }
+                  className="flex-1 rounded-md bg-vcdc-green px-4 py-2 text-sm font-medium text-white hover:bg-vcdc-green/90"
+                >
+                  Sign waiver now
+                </button>
+              )}
+              <TextWaiverButton waiverUrl={waiverUrl} />
+            </div>
           )}
         </>
       )}
@@ -403,6 +427,11 @@ export function RideScanner({
   const [submitted, setSubmitted] = useState(rideStatus === 'submitted')
   const [memoryOnly, setMemoryOnly] = useState(false)
   const [showingWaiver, setShowingWaiver] = useState(false)
+  const [signingWaiver, setSigningWaiver] = useState<{
+    memberNumber: number
+    firstName: string
+    lastName: string
+  } | null>(null)
 
   // Read inside the scan handler without making it a dependency, so the
   // camera loop is never torn down and restarted by a state change.
@@ -708,6 +737,30 @@ export function RideScanner({
     }
   }, [rideId, stop, refreshScans])
 
+  const handleWaiverSigned = useCallback(async () => {
+    if (!signingWaiver || !outcome || outcome.kind !== 'member') {
+      setSigningWaiver(null)
+      return
+    }
+
+    setSigningWaiver(null)
+
+    // Refresh the member's waiver status from the server
+    try {
+      const raw = outcome.member.memberNumber
+        ? `vcdc:m:${outcome.member.memberNumber}`
+        : ''
+      if (raw) {
+        const refreshed = await lookupScan(raw)
+        if (refreshed.ok && refreshed.outcome.kind === 'member') {
+          setOutcome(refreshed.outcome)
+        }
+      }
+    } catch {
+      // Keep the current outcome if refresh fails
+    }
+  }, [signingWaiver, outcome])
+
   if (submitted) {
     return (
       <div className="rounded-lg border-2 border-vcdc-green bg-vcdc-green/10 p-4">
@@ -722,7 +775,19 @@ export function RideScanner({
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      {signingWaiver && (
+        <ScanWaiverModal
+          open={true}
+          onOpenChange={(open) => !open && setSigningWaiver(null)}
+          memberNumber={signingWaiver.memberNumber}
+          firstName={signingWaiver.firstName}
+          lastName={signingWaiver.lastName}
+          onSuccess={handleWaiverSigned}
+        />
+      )}
+
+      <div className="space-y-4">
       {flash && (
         <div
           aria-hidden
@@ -873,6 +938,7 @@ export function RideScanner({
           duplicate={duplicate}
           waiverUrl={waiverUrl}
           onCollected={() => setOutcome(null)}
+          onWaiverSign={(member) => setSigningWaiver(member)}
         />
       )}
 
@@ -922,6 +988,7 @@ export function RideScanner({
         </p>
       </div>
     </div>
+    </>
   )
 }
 
