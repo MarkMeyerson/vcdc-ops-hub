@@ -34,11 +34,11 @@ export function ScanWaiverModal({
   if (state.ok) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent onOpenChange={onOpenChange}>
+        <DialogContent>
           <div className="rounded-lg border-2 border-vcdc-green bg-vcdc-green/10 p-5">
             <h2 className="text-lg font-semibold">Waiver signed</h2>
             <p className="mt-2 text-sm">
-              Thank you, {state.firstName}. You're all set to ride.
+              Thank you, {state.firstName}. You&apos;re all set to ride.
             </p>
             <Button
               onClick={() => {
@@ -57,7 +57,7 @@ export function ScanWaiverModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onOpenChange={onOpenChange}>
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Waiver required</DialogTitle>
         </DialogHeader>
