@@ -175,6 +175,26 @@ export const rideComments = pgTable(
   (table) => [index('ride_comments_ride_id_idx').on(table.rideId)]
 )
 
+export const appFeedback = pgTable('app_feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  rideLeaderId: uuid('ride_leader_id')
+    .notNull()
+    .references(() => rideLeaders.id),
+  // Where they were standing when they hit the button, e.g. "/ride/abc/scan".
+  // Captured automatically so nobody has to describe which screen they mean.
+  path: text('path').notNull(),
+  message: text('message').notNull(),
+  type: text('type', {
+    enum: ['bug', 'confusing', 'idea', 'question', 'other'],
+  })
+    .notNull()
+    .default('other'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
 export const appSettings = pgTable('app_settings', {
   id: boolean('id').primaryKey().default(true),
   rosterRecipientEmails: text('roster_recipient_emails')
@@ -194,3 +214,4 @@ export type NewRide = typeof rides.$inferInsert
 export type GuestWaiver = typeof guestWaivers.$inferSelect
 export type WaiverVersion = typeof waiverVersions.$inferSelect
 export type RideComment = typeof rideComments.$inferSelect
+export type AppFeedback = typeof appFeedback.$inferSelect
