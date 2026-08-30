@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { requireRideAccess } from '@/lib/auth'
+import { commentsForRide } from '@/lib/ride/comments'
 import { attendanceForRide, rideForActor } from '@/lib/ride/rides'
 import {
   RIDE_STATUS_LABELS,
@@ -30,6 +31,7 @@ export default async function RidePage({
 
   const attendance = await attendanceForRide(ride.id)
   const unresolved = attendance.filter((row) => row.unresolvedReason)
+  const comments = await commentsForRide(ride.id)
   const waiver = waiverUrl()
 
   return (
@@ -121,6 +123,29 @@ export default async function RidePage({
           </ul>
         )}
       </div>
+
+      {comments.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium uppercase text-vcdc-cog">
+            Notes ({comments.length})
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {comments.map((comment) => (
+              <li
+                key={comment.id}
+                className="rounded-lg border border-vcdc-cog/30 p-3 text-sm"
+              >
+                <p className="whitespace-pre-wrap">{comment.comment}</p>
+                <p className="mt-1 text-xs text-vcdc-cog">
+                  {comment.kind === 'finish' ? 'End-of-ride note' : 'Note'}
+                  {actor.isAdmin && ` · ${comment.leaderName}`} ·{' '}
+                  {comment.createdAt.toLocaleString()}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {waiver && (
         <p className="text-xs text-vcdc-cog">
