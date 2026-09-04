@@ -241,19 +241,27 @@ run again. If it fails, the error from Google is printed in full.
 
 ## Apple Wallet
 
-**Status: enrollment submitted 2026-08-22, enrollment ID `S4N43N9YPA`.**
-Apple takes a day or two to approve. Everything below is ready to run the
-moment the credentials exist. Send members the printable card meanwhile;
-the "Add to Apple Wallet" button appears on every member's existing card
-link by itself once the five variables are set, with nothing re-sent.
+**Status: approved 2026-09. The club (The Vespa Club of D.C., Inc.) holds
+the membership; Rob is the Account Holder.** The enrollment submitted
+2026-08-22 was `S4N43N9YPA`. Everything below is ready to run the moment
+the credentials exist. The "Add to Apple Wallet" button appears on every
+member's existing card link by itself once the five variables are set,
+with nothing re-sent.
 
-Watch for one thing when approval lands: **the enrollment ID and the Team
-ID are not guaranteed to be the same string.** `APPLE_TEAM_ID` must be the
-Team ID shown under Membership details (A1 below), not the enrollment ID
-recorded here. They often match, which is exactly why it is worth checking
-rather than assuming: a pass signed against the wrong team is rejected by
-the phone at the moment a member taps Add, long after anything logs an
-error worth reading.
+**Whoever runs A2 and A3 needs the Admin role on the team** (or to be the
+Account Holder). The Developer role cannot create Pass Type IDs or
+certificates, and an invite sent from App Store Connect can land without
+any access to Certificates, Identifiers & Profiles at all. The Account
+Holder fixes this in App Store Connect, Users and Access: open the person,
+set role Admin, tick "Access to Certificates, Identifiers & Profiles".
+
+**No Mac is needed.** A3 below has a script path (`npm run apple:csr` and
+`npm run apple:p12`) that replaces Keychain Access, verifies the
+certificate, and prints all five Vercel values, reading the Team ID and
+Pass Type ID out of the certificate itself. That also removes the
+enrollment-ID-versus-Team-ID trap: the two are not guaranteed to be the
+same string, and a pass signed against the wrong team is rejected by the
+phone at the moment a member taps Add.
 
 ### Prerequisites
 
@@ -269,8 +277,8 @@ error worth reading.
   requires a D-U-N-S number, which is free but can take up to two weeks to
   obtain. If the club should own this eventually, start the D-U-N-S request
   first and avoid the redo.
-- A Mac with Keychain Access (any Mac, nothing installed on it matters
-  afterward).
+- Either this repo checked out with `npm ci` done (script path in A3), or
+  a Mac with Keychain Access (manual path in A3).
 
 ### A1: find your Team ID
 
@@ -278,7 +286,9 @@ error worth reading.
 to Membership details. The Team ID is a 10-character code like `A1BC23DEF4`.
 
 Copy it from that page rather than reusing the enrollment ID from the
-confirmation email, even if the two look identical.
+confirmation email, even if the two look identical. If you use the script
+path in A3, it prints the Team ID from the certificate and you can check
+the two agree.
 
 Vercel env var: `APPLE_TEAM_ID`.
 
@@ -296,6 +306,37 @@ Vercel env var: `APPLE_PASS_TYPE_ID` = the identifier string exactly, e.g.
 `pass.org.vespaclubofdc.member`.
 
 ### A3: create and export the signing certificate
+
+#### Script path (Windows, Linux, or Mac; recommended)
+
+1. In the repo folder:
+
+   ```
+   npm run apple:csr
+   ```
+
+   This creates `apple-cert/` (gitignored) holding a private key and
+   `pass-signing.csr`, and prints the next step.
+2. On developer.apple.com: Certificates, plus button, scroll to Services,
+   choose Pass Type ID Certificate, Continue. Select the Pass Type ID from
+   A2, upload `apple-cert/pass-signing.csr`, Continue, Download. Save the
+   download as `apple-cert/pass.cer`.
+3. Back in the repo folder:
+
+   ```
+   npm run apple:p12
+   ```
+
+   It downloads Apple's WWDR G4 certificate (A4) on its own, confirms the
+   certificate matches the key and was issued by Apple, writes the `.p12`
+   with a generated password, and prints all five `APPLE_*` values in
+   Vercel form. Skip A4 and go to A5.
+
+   If it complains that `pass.cer` was not issued for the key, an old CSR
+   was uploaded: delete `apple-cert/`, run `apple:csr` again, upload the
+   new `.csr`.
+
+#### Manual path (Mac, Keychain Access)
 
 1. On the Mac: open Keychain Access, menu Keychain Access, Certificate
    Assistant, Request a Certificate From a Certificate Authority.
@@ -360,9 +401,13 @@ model in `src/lib/wallet/apple.ts` (`icon.png` 29x29, `icon@2x.png` 58x58,
 `icon@3x.png` 87x87, and optionally `logo.png` for the top-left corner,
 max 160x50 points at 1x).
 
-### Renewal (yearly, this WILL come due mid-2027)
+### Renewal (yearly, this WILL come due one year after A3 is done)
 
-1. Repeat A3 (new CSR, new certificate, new .p12 export).
+`npm run apple:p12` prints the exact expiry date; put a reminder one month
+before it.
+
+1. Delete or rename the old `apple-cert/` folder, then repeat A3 (new CSR,
+   new certificate, new .p12).
 2. Replace `APPLE_PASS_CERT_P12_B64` and `APPLE_PASS_CERT_PASSWORD` in
    Vercel. Redeploy.
 3. Existing passes in members' Wallets are unaffected. Only the ability to

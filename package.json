@@ -12,7 +12,9 @@
     "seed": "tsx scripts/seed.ts",
     "google:class": "tsx --env-file-if-exists=.env.local scripts/google-wallet-class.ts",
     "import:members": "tsx --env-file-if-exists=.env.local scripts/import-members.ts",
-    "import:sql": "tsx scripts/import-members.ts --sql"
+    "import:sql": "tsx scripts/import-members.ts --sql",
+    "apple:csr": "tsx scripts/apple-cert.ts csr",
+    "apple:p12": "tsx scripts/apple-cert.ts p12"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

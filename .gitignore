@@ -28,3 +28,6 @@ npm-debug.log*
 
 # typescript
 *.tsbuildinfo
+
+# Apple pass-signing key/cert working folder (npm run apple:csr). Private key lives here.
+/apple-cert/
