@@ -2,7 +2,7 @@
 --
 -- ride_comments (migration 0005) is scoped to a ride: a note during
 -- check-in or the required comment at submit. This table is the other
--- half of the Phase 5 feedback scoping — a leader hitting a snag on any
+-- half of the Phase 5 feedback scoping: a leader hitting a snag on any
 -- screen, ride or no ride, taps one button and it's captured with the page
 -- they were on. Nothing here requires a ride to exist.
 

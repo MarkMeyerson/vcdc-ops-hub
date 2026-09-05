@@ -78,7 +78,18 @@ export function FeedbackWidget() {
         aria-label="Send feedback"
         className="fixed bottom-4 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-vcdc-charcoal text-white shadow-lg hover:bg-vcdc-charcoal/90"
       >
-        <span aria-hidden className="text-lg">💬</span>
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          className="h-5 w-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -86,7 +97,7 @@ export function FeedbackWidget() {
           <DialogHeader>
             <DialogTitle>Send feedback</DialogTitle>
             <DialogDescription>
-              Bug, something confusing, an idea — whatever it is, this goes
+              Bug, something confusing, an idea: whatever it is, this goes
               straight to the club, tagged with the screen you&rsquo;re on.
             </DialogDescription>
           </DialogHeader>
@@ -94,7 +105,7 @@ export function FeedbackWidget() {
           {sent ? (
             <div className="space-y-3">
               <p className="text-sm text-vcdc-green">
-                Sent. Thanks — this is read.
+                Sent. Thanks, this is read.
               </p>
               <Button type="button" onClick={() => setOpen(false)} className="w-full">
                 Close

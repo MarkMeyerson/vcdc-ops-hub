@@ -922,7 +922,7 @@ export function RideScanner({
             <Textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Anything the club should know right now — a hazard, a no-show, a confusing spot on the route."
+              placeholder="Anything the club should know right now: a hazard, a no-show, a confusing spot on the route."
               rows={3}
             />
             <Button
