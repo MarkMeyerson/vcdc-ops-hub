@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { requireRideAccess } from '@/lib/auth'
 import { SignOutButton } from '@/components/sign-out-button'
 import { ServiceWorkerRegistrar } from '@/components/service-worker'
+import { FeedbackWidget } from '@/components/feedback-widget'
 
 // Installable from here down. A leader adds this to their home screen and
 // gets a full-screen app with no browser chrome eating the viewport, which
@@ -49,6 +50,7 @@ export default async function RideLayout({
         </div>
       </header>
       <main className="mx-auto max-w-2xl px-4 py-6">{children}</main>
+      <FeedbackWidget />
     </div>
   )
 }

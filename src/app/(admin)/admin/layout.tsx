@@ -31,6 +31,12 @@ export default async function AdminLayout({
               <Link href="/admin/waiver" className="hover:text-white">
                 Waiver
               </Link>
+              <Link href="/admin/feedback" className="hover:text-white">
+                Feedback
+              </Link>
+              <Link href="/admin/stats" className="hover:text-white">
+                Usage
+              </Link>
               <Link href="/ride" className="hover:text-white">
                 Rides
               </Link>

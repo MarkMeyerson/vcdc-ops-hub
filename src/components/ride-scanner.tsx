@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import {
+  addRideComment,
   lookupScan,
   pushScans,
   saveContact,
@@ -43,6 +44,7 @@ import { displayDate, tierLabels } from '@/lib/display'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { ScanWaiverModal } from '@/components/scan-waiver-modal'
 
 // Ride sign-in scanner. Phone-first: the leader is standing in a parking lot
@@ -432,6 +434,12 @@ export function RideScanner({
     firstName: string
     lastName: string
   } | null>(null)
+  const [notingRide, setNotingRide] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [noteSaving, setNoteSaving] = useState(false)
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const [noteSaved, setNoteSaved] = useState(false)
+  const [finishComment, setFinishComment] = useState('')
 
   // Read inside the scan handler without making it a dependency, so the
   // camera loop is never torn down and restarted by a state change.
@@ -705,6 +713,10 @@ export function RideScanner({
   }, [syncQueue])
 
   const handleSubmit = useCallback(async () => {
+    if (!finishComment.trim()) {
+      setSubmitError('Add a quick note on how the ride went before submitting.')
+      return
+    }
     setSubmitting(true)
     setSubmitError(null)
     try {
@@ -716,7 +728,8 @@ export function RideScanner({
           raw: s.raw,
           scannedAt: s.scannedAt,
           offline: s.offline,
-        }))
+        })),
+        finishComment
       )
       if (!result.ok) {
         setSubmitError(result.error)
@@ -735,7 +748,28 @@ export function RideScanner({
     } finally {
       setSubmitting(false)
     }
-  }, [rideId, stop, refreshScans])
+  }, [rideId, stop, refreshScans, finishComment])
+
+  const handleSaveNote = useCallback(async () => {
+    setNoteSaving(true)
+    setNoteError(null)
+    try {
+      const result = await addRideComment(rideId, noteText)
+      if (!result.ok) {
+        setNoteError(result.error)
+        return
+      }
+      setNoteText('')
+      setNotingRide(false)
+      setNoteSaved(true)
+    } catch {
+      setNoteError(
+        'Could not reach the server. Try again once you have signal.'
+      )
+    } finally {
+      setNoteSaving(false)
+    }
+  }, [rideId, noteText])
 
   // After a signature lands, the screen and the phone's roster both still say
   // the rider has no waiver. Neither can be fixed by re-scanning: the roster
@@ -869,6 +903,44 @@ export function RideScanner({
         </p>
       )}
 
+      <div className="rounded-lg border border-vcdc-cog/30 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Anything worth flagging?</p>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setNoteSaved(false)
+              setNotingRide((open) => !open)
+            }}
+          >
+            {notingRide ? 'Cancel' : 'Leave a note'}
+          </Button>
+        </div>
+        {notingRide && (
+          <div className="mt-3 space-y-2">
+            <Textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Anything the club should know right now: a hazard, a no-show, a confusing spot on the route."
+              rows={3}
+            />
+            <Button
+              type="button"
+              onClick={() => void handleSaveNote()}
+              disabled={noteSaving || !noteText.trim()}
+              className="w-full"
+            >
+              {noteSaving ? 'Saving...' : 'Save note'}
+            </Button>
+            {noteError && <p className="text-sm text-vcdc-red">{noteError}</p>}
+          </div>
+        )}
+        {noteSaved && !notingRide && (
+          <p className="mt-2 text-xs text-vcdc-green">Note saved.</p>
+        )}
+      </div>
+
       {waiverQrDataUrl && (
         <div className="rounded-lg border border-vcdc-cog/30 p-3">
           <div className="flex items-center justify-between gap-2">
@@ -996,10 +1068,20 @@ export function RideScanner({
       </div>
 
       <div className="space-y-2 border-t border-vcdc-cog/30 pt-4">
+        <Label htmlFor="finish-comment">
+          What went well? Any issues? (required to submit)
+        </Label>
+        <Textarea
+          id="finish-comment"
+          value={finishComment}
+          onChange={(e) => setFinishComment(e.target.value)}
+          placeholder="A sentence or two is plenty."
+          rows={3}
+        />
         <Button
           type="button"
           onClick={() => void handleSubmit()}
-          disabled={submitting || scans.length === 0}
+          disabled={submitting || scans.length === 0 || !finishComment.trim()}
           className="w-full"
         >
           {submitting ? 'Submitting...' : `Submit ${scans.length} riders`}

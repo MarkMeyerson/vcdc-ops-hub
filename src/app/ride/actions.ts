@@ -8,6 +8,7 @@ import {
   guestWaivers,
   members,
   rideAttendance,
+  rideComments,
   rides,
 } from '@/lib/db/schema'
 import { requireRideAccess } from '@/lib/auth'
@@ -363,15 +364,29 @@ export type SubmitResult =
 // Closes the ride. Pushes anything still queued first, so a leader who taps
 // submit the moment they get a bar of signal does not lose the tail of their
 // list to a race between the sync and the close.
+//
+// finishComment is required: the "what went well / any issues" prompt from
+// the Phase 5 feedback scoping. It replaces the old habit of texting or
+// mentioning problems in a parking lot, so it is enforced here rather than
+// only in the form, the same way the waiver checkbox is checked server-side.
 export async function submitRide(
   rideId: string,
-  scans: QueuedScan[]
+  scans: QueuedScan[],
+  finishComment: string
 ): Promise<SubmitResult> {
   const actor = await requireRideAccess()
   const ride = await rideForActor(rideId, actor)
   if (!ride) return { ok: false, error: 'That ride is not yours to submit.' }
   if (ride.status === 'submitted') {
     return { ok: false, error: 'That ride has already been submitted.' }
+  }
+
+  const comment = finishComment.trim()
+  if (!comment) {
+    return {
+      ok: false,
+      error: 'Add a quick note on how the ride went before submitting.',
+    }
   }
 
   if (scans.length > 0) {
@@ -383,6 +398,13 @@ export async function submitRide(
     .select({ id: rideAttendance.id, reason: rideAttendance.unresolvedReason })
     .from(rideAttendance)
     .where(eq(rideAttendance.rideId, rideId))
+
+  await db.insert(rideComments).values({
+    rideId,
+    rideLeaderId: ride.rideLeaderId,
+    comment,
+    kind: 'finish',
+  })
 
   await db
     .update(rides)
@@ -419,6 +441,39 @@ export async function removeAttendance(
         eq(rideAttendance.rideId, rideId)
       )
     )
+  revalidatePath(`/ride/${rideId}`)
+  return { ok: true, error: null }
+}
+
+// ---------- Ride comments ----------
+
+// An optional aside during check-in ("Leave a note"), distinct from the
+// required finish comment submitRide collects. Kept short: this is a
+// parking-lot note, not a report.
+const noteSchema = z.string().trim().min(1, 'Write something first').max(2000)
+
+export type AddCommentResult = { ok: boolean; error: string | null }
+
+export async function addRideComment(
+  rideId: string,
+  comment: string
+): Promise<AddCommentResult> {
+  const actor = await requireRideAccess()
+  const ride = await rideForActor(rideId, actor)
+  if (!ride) return { ok: false, error: 'That ride is not yours to note.' }
+
+  const parsed = noteSchema.safeParse(comment)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the note' }
+  }
+
+  await db.insert(rideComments).values({
+    rideId,
+    rideLeaderId: ride.rideLeaderId,
+    comment: parsed.data,
+    kind: 'note',
+  })
+
   revalidatePath(`/ride/${rideId}`)
   return { ok: true, error: null }
 }
